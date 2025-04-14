@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:heartsync/Introducao.dart';
-import 'package:heartsync/Login.dart';
+import 'package:heartsync/Login_screen .dart';
 
 main(){
   runApp(const MyApp());
@@ -12,7 +12,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
-      home: Login(),
+      home: Login_screen(),
     );
   }
 }
