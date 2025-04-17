@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+
 class Introducao extends StatelessWidget {
   const Introducao({super.key});
 
@@ -31,7 +32,7 @@ class Introducao extends StatelessWidget {
 
                 const SizedBox(width: 74 + 20),
                 Image.asset(
-                  'assets/images/logo.png',
+                  'lib/assets/images/logo.png',
                   width: 74,
                 ),
 
@@ -47,7 +48,7 @@ class Introducao extends StatelessWidget {
             ),
             const SizedBox(height: 30),
             Image.asset(
-              'assets/images/perfilConjunto.png',
+              'lib/assets/images/perfilConjunto.png',
               width: 440,
               height: 436,
             ),
