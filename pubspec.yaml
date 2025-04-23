@@ -51,6 +51,17 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  fonts:
+    - family: Airbnb Cereal
+      fonts:
+        - asset: fonts/AirbnbCereal_W_bd.otf
+          weight: 700
+        - asset: fonts/AirbnbCereal_W_bk.otf
+        - asset: fonts/AirbnbCereal_W_blk.otf
+        - asset: fonts/AirbnbCereal_W_Lt.otf
+        - asset: fonts/AirbnbCereal_W_Md.otf
+        - asset: fonts/AirbnbCereal_W_XBd.otf
+
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
