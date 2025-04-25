@@ -1,26 +1,52 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/Birth_screen.dart';
-import 'package:heartsync/src/features/login/presentation/view/Login_screen.dart';
+import 'package:heartsync/src/features/Registro/presentation/view/Credentials_screen.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
 
-
-// Tela 1: Campo Nome
-class Registration_screen extends StatefulWidget {
-  const Registration_screen({super.key});
-
+class DateInputFormatter extends TextInputFormatter {
   @override
-  Registration_screenState createState() => Registration_screenState();
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final text = newValue.text.replaceAll(RegExp(r'[^0-9]'), ''); // Remove tudo exceto números
+    final length = text.length;
+
+    String newText = '';
+    if (length > 0) {
+      newText += text.substring(0, length > 2 ? 2 : length); // Dia
+    }
+    if (length > 2) {
+      newText += ' / ';
+      newText += text.substring(2, length > 4 ? 4 : length); // Mês
+    }
+    if (length > 4) {
+      newText += ' / ';
+      newText += text.substring(4, length > 8 ? 8 : length); // Ano
+    }
+
+    return TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newText.length),
+    );
+  }
 }
 
-class Registration_screenState extends State<Registration_screen> {
+class BirthScreen extends StatefulWidget {
+  final String name;
+
+  const BirthScreen({super.key, required this.name});
+
+  @override
+  BirthScreenState createState() => BirthScreenState();
+}
+
+class BirthScreenState extends State<BirthScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
+  final _birthController = TextEditingController();
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _birthController.dispose();
     super.dispose();
   }
 
@@ -29,7 +55,10 @@ class Registration_screenState extends State<Registration_screen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => BirthScreen(name: _nameController.text),
+          builder: (context) => CredentialsScreen(
+            name: widget.name,
+            birth: _birthController.text,
+          ),
         ),
       );
     }
@@ -72,20 +101,20 @@ class Registration_screenState extends State<Registration_screen> {
               ),
               const SizedBox(height: 40),
               const Text(
-                'Seu nome',
+                'Seu aniversário',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 40,
-                  fontWeight: FontWeight.w700, // Bold
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 20),
               Form(
                 key: _formKey,
                 child: TextFormField(
-                  controller: _nameController,
+                  controller: _birthController,
                   decoration: InputDecoration(
-                    labelText: 'Nome',
+                    labelText: 'dd / mm / aaaa',
                     labelStyle: const TextStyle(color: Colors.grey),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
                     filled: true,
@@ -107,12 +136,35 @@ class Registration_screenState extends State<Registration_screen> {
                   ),
                   style: const TextStyle(
                     color: Colors.white,
-                    fontWeight: FontWeight.w400, // Book (Regular)
+                    fontWeight: FontWeight.w400,
                   ),
-                  keyboardType: TextInputType.name,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    DateInputFormatter(),
+                  ],
+                  maxLength: 14,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Por favor, insira seu nome';
+                      return 'Por favor, insira sua data de nascimento';
+                    }
+                    if (!RegExp(r'^\d{2} / \d{2} / \d{4}$').hasMatch(value)) {
+                      return 'Formato inválido (dd / mm / aaaa)';
+                    }
+                    // Validação adicional para data válida
+                    final parts = value.split(' / ');
+                    final day = int.tryParse(parts[0]) ?? 0;
+                    final month = int.tryParse(parts[1]) ?? 0;
+                    final year = int.tryParse(parts[2]) ?? 0;
+
+                    if (day < 1 || day > 31) {
+                      return 'Dia inválido (01-31)';
+                    }
+                    if (month < 1 || month > 12) {
+                      return 'Mês inválido (01-12)';
+                    }
+                    if (year < 1900 || year > DateTime.now().year) {
+                      return 'Ano inválido (1900-${DateTime.now().year})';
                     }
                     return null;
                   },
@@ -155,12 +207,7 @@ class Registration_screenState extends State<Registration_screen> {
                       ),
                       recognizer: TapGestureRecognizer()
                         ..onTap = () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => Login_screen(),
-                            ),
-                          );
+                          // Adicione a lógica para navegar para a tela de login
                         },
                     ),
                   ],
@@ -173,6 +220,3 @@ class Registration_screenState extends State<Registration_screen> {
     );
   }
 }
-
-
-

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:heartsync/src/features/Registro/presentation/view/Registration_screen.dart';
+import 'package:heartsync/src/features/login/presentation/view/Login_screen.dart';
 
 
 class Home_screen extends StatelessWidget {
@@ -55,7 +57,14 @@ class Home_screen extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: ElevatedButton(
-                  onPressed: () { },
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => Registration_screen(),
+                      ),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF7D48FE),
                     minimumSize: const Size(356, 59),
@@ -76,7 +85,14 @@ class Home_screen extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: ElevatedButton(
-                  onPressed: () { },
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => Login_screen(),
+                      ),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF352756),
                     minimumSize: const Size(356, 59),
