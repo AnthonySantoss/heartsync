@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:heartsync/Introducao.dart';
+import 'package:heartsync/src/features/home/presentation/view/Home_screen.dart';
 import 'package:heartsync/src/features/login/presentation/view/Registration_screen.dart';
 
 main(){
@@ -12,7 +13,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
-      home: Registration_screen(),
+      home: Home_screen(),
     );
   }
 }

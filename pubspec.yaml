@@ -54,13 +54,13 @@ flutter:
   fonts:
     - family: Airbnb Cereal
       fonts:
-        - asset: fonts/AirbnbCereal_W_bd.otf
+        - asset: lib/fonts/AirbnbCereal_W_bd.otf
           weight: 700
-        - asset: fonts/AirbnbCereal_W_bk.otf
-        - asset: fonts/AirbnbCereal_W_blk.otf
-        - asset: fonts/AirbnbCereal_W_Lt.otf
-        - asset: fonts/AirbnbCereal_W_Md.otf
-        - asset: fonts/AirbnbCereal_W_XBd.otf
+        - asset: lib/fonts/AirbnbCereal_W_bk.otf
+        - asset: lib/fonts/AirbnbCereal_W_blk.otf
+        - asset: lib/fonts/AirbnbCereal_W_Lt.otf
+        - asset: lib/fonts/AirbnbCereal_W_Md.otf
+        - asset: lib/fonts/AirbnbCereal_W_XBd.otf
 
 
   # The following line ensures that the Material Icons font is
