@@ -1,9 +1,9 @@
+import 'dart:math'; // Para gerar um código aleatório
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
+import 'package:heartsync/src/features/registro/presentation/view/verification_code_screen.dart'; // Importe a nova tela
 
-// Tela 3: Campos E-mail, Senha e Confirmação de Senha
 class CredentialsScreen extends StatefulWidget {
   final String name;
   final String birth;
@@ -30,9 +30,24 @@ class CredentialsScreenState extends State<CredentialsScreen> {
 
   void _submitForm() {
     if (_formKey.currentState!.validate()) {
-      // Aqui você pode adicionar a lógica para registrar o usuário
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registro concluído!')),
+      // Gerar um código de verificação simulado (6 dígitos)
+      //String verificationCode = (Random().nextInt(999999) + 100000).toString();
+      String verificationCode = (101010).toString();
+      // Simular o envio do código (o backend substituirá isso depois)
+      print('Código de verificação simulado para ${_emailController.text}: $verificationCode');
+
+      // Navegar para a tela de verificação
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => VerificationCodeScreen(
+            email: _emailController.text,
+            name: widget.name,
+            birth: widget.birth,
+            password: _passwordController.text,
+            verificationCode: verificationCode,
+          ),
+        ),
       );
     }
   }
@@ -193,7 +208,7 @@ class CredentialsScreenState extends State<CredentialsScreen> {
                       ),
                       style: const TextStyle(
                         color: Colors.white,
-                        fontWeight: FontWeight.w400, // Book (Regular)
+                        fontWeight: FontWeight.w400,
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -222,7 +237,7 @@ class CredentialsScreenState extends State<CredentialsScreen> {
                   'Registrar',
                   style: TextStyle(
                     fontSize: 20,
-                    fontWeight: FontWeight.w700, // Bold
+                    fontWeight: FontWeight.w700,
                     color: Colors.white,
                   ),
                 ),
@@ -234,13 +249,13 @@ class CredentialsScreenState extends State<CredentialsScreen> {
                   style: const TextStyle(
                     fontSize: 18,
                     color: Colors.white,
-                    fontWeight: FontWeight.w400, // Book (Regular)
+                    fontWeight: FontWeight.w400,
                   ),
                   children: [
                     TextSpan(
                       text: ' Entrar',
                       style: const TextStyle(
-                        fontWeight: FontWeight.w700, // Bold
+                        fontWeight: FontWeight.w700,
                         color: Colors.white,
                       ),
                       recognizer: TapGestureRecognizer()
