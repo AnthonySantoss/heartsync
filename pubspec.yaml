@@ -74,7 +74,9 @@ flutter:
     - lib/assets/images/perfilConjunto.png
     - lib/assets/images/home.png
     - lib/assets/images/Back.png
-    - lib/assets/images/qrcode.png
+    - lib/assets/images/gerenciem_o_tempo.png
+    - lib/assets/images/atividadesemconjunto.png
+    - lib/assets/images/cultivembons.png
 
 
   # An image asset can refer to one or more resolution-specific "variants", see
