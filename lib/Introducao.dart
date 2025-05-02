@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:heartsync/src/features/home/presentation/view/Home_screen.dart';
+
 
 class Introducao extends StatefulWidget {
   const Introducao({super.key});
@@ -31,6 +33,11 @@ class _IntroducaoState extends State<Introducao> {
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => Home_screen()),
+      );
     }
   }
 
@@ -60,7 +67,12 @@ class _IntroducaoState extends State<Introducao> {
                 Padding(
                   padding: const EdgeInsets.only(right: 20),
                   child: TextButton(
-                    onPressed: () {},
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (context) => Home_screen()),
+                        );
+                      },
                     child: const Text(
                       'Pular',
                       style: TextStyle(color: Colors.white),
