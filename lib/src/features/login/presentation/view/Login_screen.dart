@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
+import 'package:heartsync/src/features/Registro/presentation/view/Registration_screen.dart';
 
 class Login_screen extends StatelessWidget {
   const Login_screen({super.key});
