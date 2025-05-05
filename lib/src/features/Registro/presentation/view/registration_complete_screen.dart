@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:heartsync/src/features/Menu/presentation/view/Home_page.dart';
 
 class RegistrationCompleteScreen extends StatelessWidget {
   final String name;
@@ -95,10 +96,12 @@ class RegistrationCompleteScreen extends StatelessWidget {
                 const Spacer(),
                 ElevatedButton(
                   onPressed: () {
-                    // Simula o término do registro e navega para a tela inicial
-                    print('Registro concluído: Nome: $name, Nascimento: $birth, E-mail: $email, Senha: $password, Imagem: $profileImagePath, Heart Code: $heartCode, Partner Heart Code: $partnerHeartCode');
-                    Navigator.pushReplacementNamed(context, '/home');
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => const Home_page()),
+                    );
                   },
+
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF7D48FE),
                     minimumSize: const Size(double.infinity, 66),

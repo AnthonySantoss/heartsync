@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
+import 'package:heartsync/src/features/Registro/presentation/view/Registration_screen.dart';
 
 class Login_screen extends StatelessWidget {
   const Login_screen({super.key});
@@ -12,13 +13,32 @@ class Login_screen extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: SingleChildScrollView(
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 40),
-              Image.asset(
-                'lib/assets/images/logo.png',
-                width: 47.7,
+              Padding(
+                padding: const EdgeInsets.only(top: 79.1),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: Image.asset(
+                        'lib/assets/images/Back.png',
+                        width: 27,
+                      ),
+                    ),
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.center,
+                        child: Image.asset(
+                          'lib/assets/images/logo.png',
+                          width: 47.7,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 47),
+                  ],
+                ),
               ),
               const SizedBox(height: 30),
               const Text(
