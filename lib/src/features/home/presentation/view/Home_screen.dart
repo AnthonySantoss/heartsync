@@ -89,7 +89,7 @@ class Home_screen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => Login_screen(),
+                        builder: (context) => LoginScreen(),
                       ),
                     );
                   },

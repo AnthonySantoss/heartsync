@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:heartsync/src/features/Menu/presentation/view/Home_page.dart';
+import 'package:heartsync/src/features/Menu/presentation/view/Home_page_screen.dart';
 
 class RegistrationCompleteScreen extends StatelessWidget {
   final String name;
@@ -98,7 +98,7 @@ class RegistrationCompleteScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (context) => const Home_page()),
+                      MaterialPageRoute(builder: (context) => const HomePage()),
                     );
                   },
 

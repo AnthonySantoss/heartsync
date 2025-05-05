@@ -53,12 +53,7 @@ class ProfileScreen extends StatelessWidget {
                       children: [
                         IconButton(
                           onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => StatisticScreen(),
-                              ),
-                            );
+                            Navigator.pop(context);
                           },
                           icon: Image.asset(
                             'lib/assets/images/Back.png',
