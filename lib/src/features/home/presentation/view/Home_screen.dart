@@ -1,4 +1,4 @@
-/*import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:heartsync/src/features/Registro/presentation/view/Registration_screen.dart';
 import 'package:heartsync/src/features/login/presentation/view/Login_screen.dart';
 
@@ -157,79 +157,6 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 30),
             ],
           ),
-        ),
-      ),
-    );
-  }
-} */
-import 'package:flutter/material.dart';
-import 'package:heartsync/db/database_helper.dart';
-
-class Home_screen extends StatefulWidget {
-  @override
-  _Home_screenState createState() => _Home_screenState();
-}
-
-class _Home_screenState extends State<Home_screen> {
-  final _mensagemController = TextEditingController();
-  List<Map<String, dynamic>> _mensagens = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _carregarMensagens();
-  }
-
-  Future<void> _carregarMensagens() async {
-    final dados = await DatabaseHelper.instance.getTests();
-    setState(() {
-      _mensagens = dados;
-    });
-  }
-
-  Future<void> _salvarMensagem() async {
-    final texto = _mensagemController.text.trim();
-    if (texto.isEmpty) return;
-
-    await DatabaseHelper.instance.insertTest(texto);
-    _mensagemController.clear();
-    await _carregarMensagens();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('HeartSync - SQLite Test')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: _mensagemController,
-              decoration: InputDecoration(
-                labelText: 'Escreva uma mensagem',
-                suffixIcon: IconButton(
-                  icon: Icon(Icons.send),
-                  onPressed: _salvarMensagem,
-                ),
-              ),
-            ),
-            SizedBox(height: 20),
-            Expanded(
-              child: _mensagens.isEmpty
-                  ? Center(child: Text('Nenhuma mensagem salva'))
-                  : ListView.builder(
-                itemCount: _mensagens.length,
-                itemBuilder: (context, index) {
-                  final msg = _mensagens[index];
-                  return ListTile(
-                    title: Text(msg['mensagem']),
-                    subtitle: Text(msg['data']),
-                  );
-                },
-              ),
-            ),
-          ],
         ),
       ),
     );
