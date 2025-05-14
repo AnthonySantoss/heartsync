@@ -9,7 +9,10 @@ import 'Intro_screen.dart';
 
 
 void main() {
-  runApp(MyApp());
+  runApp(MaterialApp(
+    home: RouletteScreen(),
+  ));
+
 }
 
 class MyApp extends StatelessWidget {
