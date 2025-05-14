@@ -2,18 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
 import 'package:heartsync/src/features/Registro/presentation/view/Registration_screen.dart';
 
-class LoginScreen extends StatelessWidget {
-  LoginScreen({super.key});
+class LoginScreen extends StatefulWidget {
+  final VoidCallback onLoginComplete;
 
-  // Controladores para os campos de texto
+  const LoginScreen({super.key, required this.onLoginComplete});
+
+  @override
+  LoginScreenState createState() => LoginScreenState();
+}
+
+class LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-
-  // Chave para o formulário (validação)
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-
-  // Estado de carregamento
   bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +35,6 @@ class LoginScreen extends StatelessWidget {
             key: _formKey,
             child: Column(
               children: [
-                // Cabeçalho (logo e botão voltar)
                 Padding(
                   padding: const EdgeInsets.only(top: 79.1),
                   child: Row(
@@ -52,7 +60,6 @@ class LoginScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 30),
-                // Título
                 const Text(
                   'Entrar',
                   style: TextStyle(
@@ -71,19 +78,14 @@ class LoginScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 30),
-                // Campo de email
                 _buildEmailField(),
                 const SizedBox(height: 10),
-                // Campo de senha
                 _buildPasswordField(),
                 const SizedBox(height: 9),
-                // Esqueceu a senha
                 _buildForgotPassword(),
                 const SizedBox(height: 30),
-                // Botão de login
                 _buildLoginButton(context),
                 const SizedBox(height: 30),
-                // Link para registro
                 _buildRegisterText(context),
                 const SizedBox(height: 20),
               ],
@@ -198,12 +200,9 @@ class LoginScreen extends StatelessWidget {
           if (_formKey.currentState!.validate()) {
             setState(() => _isLoading = true);
             try {
-              // TODO: Implementar chamada ao back-end
-              // await AuthService.login(
-              //   _emailController.text,
-              //   _passwordController.text,
-              // );
-              // Navigator.pushReplacement(...);
+              // Simula login bem-sucedido
+              await Future.delayed(const Duration(seconds: 1)); // Simulação de chamada ao backend
+              widget.onLoginComplete(); // Chama o callback para navegar para /homepage
             } catch (e) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Erro: $e')),
@@ -236,10 +235,7 @@ class LoginScreen extends StatelessWidget {
   Widget _buildRegisterText(BuildContext context) {
     return TextButton(
       onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => Registration_screen()),
-        );
+        Navigator.pushNamed(context, '/register');
       },
       child: const Text.rich(
         TextSpan(
@@ -257,10 +253,5 @@ class LoginScreen extends StatelessWidget {
         style: TextStyle(color: Colors.white),
       ),
     );
-  }
-
-  // Método para atualizar o estado (simulado para StatelessWidget)
-  void setState(VoidCallback fn) {
-    fn();
   }
 }

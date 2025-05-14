@@ -1,0 +1,7 @@
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "lib/assets/icon/icon.png"  # Caminho para sua imagem de ícone
+  # Opcional: configurar cores de fundo
+  # android_adaptive_icon_background: "#FFFFFF"
+  # ios_adaptive_icon_background: "#FFFFFF"

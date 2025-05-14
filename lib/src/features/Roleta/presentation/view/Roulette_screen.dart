@@ -4,6 +4,8 @@ import 'package:heartsync/src/features/login/presentation/widgets/Background_wid
 import 'package:flutter_fortune_wheel/flutter_fortune_wheel.dart';
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/services.dart';
+
 
 class Activity {
   final String name;
@@ -20,11 +22,11 @@ class RouletteScreen extends StatefulWidget {
   const RouletteScreen({
     super.key,
     this.initialActivities = const [
-      Activity(name: 'Filme', blockTime: '1 hora'),
-      Activity(name: 'Jogar...', blockTime: '1h30min'),
-      Activity(name: 'Fazer...', blockTime: '2 horas'),
-      Activity(name: 'Assistir...', blockTime: '1 hora'),
-      Activity(name: 'Domir...', blockTime: '30 minutos'),
+      Activity(name: 'Filme', blockTime: '01:00'),
+      Activity(name: 'Jogar', blockTime: '01:30'),
+      Activity(name: 'Fazer exercícios', blockTime: '02:00'),
+      Activity(name: 'Assistir série', blockTime: '01:00'),
+      Activity(name: 'Dormir', blockTime: '00:30'),
     ],
     this.imageUrl,
     this.dayUsed = '3',
@@ -37,11 +39,11 @@ class RouletteScreen extends StatefulWidget {
 class _RouletteScreenState extends State<RouletteScreen> {
   List<Activity> activities = [];
   List<Activity> outdoorActivities = const [
-    Activity(name: 'Caminhar', blockTime: '1 hora'),
-    Activity(name: 'Corrida', blockTime: '1h30min'),
-    Activity(name: 'Piquenique', blockTime: '2 horas'),
-    Activity(name: 'Ciclismo', blockTime: '1 hora'),
-    Activity(name: 'Passeio', blockTime: '30 minutos'),
+    Activity(name: 'Caminhar', blockTime: '01:00'),
+    Activity(name: 'Corrida', blockTime: '01:30'),
+    Activity(name: 'Piquenique', blockTime: '02:00'),
+    Activity(name: 'Ciclismo', blockTime: '01:00'),
+    Activity(name: 'Passeio', blockTime: '00:30'),
   ];
   int selectedIndex = 0;
   bool isSpinning = false;
@@ -61,12 +63,38 @@ class _RouletteScreenState extends State<RouletteScreen> {
     super.dispose();
   }
 
+  String _formatDisplayTime(String time) {
+    final parts = time.split(':');
+    if (parts.length != 2) return time;
+
+    try {
+      final hours = int.parse(parts[0]);
+      final minutes = int.parse(parts[1]);
+
+      if (hours > 0 && minutes > 0) {
+        return '${hours}h${minutes.toString().padLeft(2, '0')}min';
+      } else if (hours > 0) {
+        return '${hours}h';
+      } else {
+        return '${minutes}min';
+      }
+    } catch (e) {
+      return time;
+    }
+  }
+
+  bool _isValidTime(String time) {
+    return RegExp(r'^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$').hasMatch(time);
+  }
+
   void addActivity() {
     showDialog(
       context: context,
       builder: (context) {
         String newName = '';
         String newTime = '';
+        final timeController = TextEditingController();
+
         return AlertDialog(
           backgroundColor: const Color(0xFF210E45),
           shape: RoundedRectangleBorder(
@@ -92,14 +120,16 @@ class _RouletteScreenState extends State<RouletteScreen> {
                   ),
                 ),
                 style: const TextStyle(color: Colors.white),
-                onChanged: (value) {
-                  newName = value;
-                },
+                onChanged: (value) => newName = value,
               ),
+              const SizedBox(height: 10),
               TextField(
+                controller: timeController,
                 decoration: const InputDecoration(
-                  labelText: 'Tempo de Bloqueio (ex.: 1 hora)',
+                  labelText: 'Tempo (HH:MM)',
                   labelStyle: TextStyle(color: Colors.white70),
+                  hintText: 'Ex: 01:30 para 1h30min',
+                  hintStyle: TextStyle(color: Colors.white54),
                   enabledBorder: UnderlineInputBorder(
                     borderSide: BorderSide(color: Colors.white70),
                   ),
@@ -107,18 +137,24 @@ class _RouletteScreenState extends State<RouletteScreen> {
                     borderSide: BorderSide(color: Colors.white),
                   ),
                 ),
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(5),
+                  FilteringTextInputFormatter.digitsOnly,
+                  _TimeInputFormatter(),
+                ],
                 style: const TextStyle(color: Colors.white),
                 onChanged: (value) {
-                  newTime = value;
+                  if (value.length == 5) {
+                    newTime = value;
+                  }
                 },
               ),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context),
               style: TextButton.styleFrom(
                 backgroundColor: const Color(0xFF4D3192),
                 shape: RoundedRectangleBorder(
@@ -133,13 +169,12 @@ class _RouletteScreenState extends State<RouletteScreen> {
             ),
             TextButton(
               onPressed: () {
-                if (newName.isNotEmpty && newTime.isNotEmpty) {
+                if (newName.isNotEmpty && newTime.isNotEmpty && _isValidTime(newTime)) {
                   setState(() {
                     activities.add(Activity(name: newName, blockTime: newTime));
                   });
-                  print('Nova tarefa adicionada: $newName, $newTime');
+                  Navigator.pop(context);
                 }
-                Navigator.pop(context);
               },
               style: TextButton.styleFrom(
                 backgroundColor: const Color(0xFF4D3192),
@@ -162,6 +197,8 @@ class _RouletteScreenState extends State<RouletteScreen> {
   void editActivity(int index) {
     String editName = activities[index].name;
     String editTime = activities[index].blockTime;
+    final timeController = TextEditingController(text: editTime);
+
     showDialog(
       context: context,
       builder: (context) {
@@ -191,14 +228,16 @@ class _RouletteScreenState extends State<RouletteScreen> {
                 ),
                 controller: TextEditingController(text: editName),
                 style: const TextStyle(color: Colors.white),
-                onChanged: (value) {
-                  editName = value;
-                },
+                onChanged: (value) => editName = value,
               ),
+              const SizedBox(height: 10),
               TextField(
+                controller: timeController,
                 decoration: const InputDecoration(
-                  labelText: 'Tempo de Bloqueio (ex.: 1 hora)',
+                  labelText: 'Tempo (HH:MM)',
                   labelStyle: TextStyle(color: Colors.white70),
+                  hintText: 'Ex: 01:30 para 1h30min',
+                  hintStyle: TextStyle(color: Colors.white54),
                   enabledBorder: UnderlineInputBorder(
                     borderSide: BorderSide(color: Colors.white70),
                   ),
@@ -206,19 +245,24 @@ class _RouletteScreenState extends State<RouletteScreen> {
                     borderSide: BorderSide(color: Colors.white),
                   ),
                 ),
-                controller: TextEditingController(text: editTime),
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(5),
+                  FilteringTextInputFormatter.digitsOnly,
+                  _TimeInputFormatter(),
+                ],
                 style: const TextStyle(color: Colors.white),
                 onChanged: (value) {
-                  editTime = value;
+                  if (value.length == 5) {
+                    editTime = value;
+                  }
                 },
               ),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context),
               style: TextButton.styleFrom(
                 backgroundColor: const Color(0xFF4D3192),
                 shape: RoundedRectangleBorder(
@@ -233,13 +277,12 @@ class _RouletteScreenState extends State<RouletteScreen> {
             ),
             TextButton(
               onPressed: () {
-                if (editName.isNotEmpty && editTime.isNotEmpty) {
+                if (editName.isNotEmpty && editTime.isNotEmpty && _isValidTime(editTime)) {
                   setState(() {
                     activities[index] = Activity(name: editName, blockTime: editTime);
                   });
-                  print('Tarefa editada: $editName, $editTime');
+                  Navigator.pop(context);
                 }
-                Navigator.pop(context);
               },
               style: TextButton.styleFrom(
                 backgroundColor: const Color(0xFF4D3192),
@@ -264,7 +307,7 @@ class _RouletteScreenState extends State<RouletteScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF210E45),
+          backgroundColor: const Color(0xFF08050F),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
@@ -280,7 +323,7 @@ class _RouletteScreenState extends State<RouletteScreen> {
               itemCount: activities.length,
               itemBuilder: (context, index) {
                 return Card(
-                  color: const Color(0xFF08050F),
+                  color: const Color(0xFF210E45),
                   margin: const EdgeInsets.symmetric(vertical: 5),
                   child: ListTile(
                     title: Text(
@@ -288,7 +331,7 @@ class _RouletteScreenState extends State<RouletteScreen> {
                       style: const TextStyle(color: Colors.white, fontSize: 16),
                     ),
                     subtitle: Text(
-                      'Bloqueio: ${activities[index].blockTime}',
+                      'Bloqueio: ${_formatDisplayTime(activities[index].blockTime)}',
                       style: const TextStyle(color: Colors.white70, fontSize: 14),
                     ),
                     trailing: IconButton(
@@ -305,9 +348,7 @@ class _RouletteScreenState extends State<RouletteScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context),
               style: TextButton.styleFrom(
                 backgroundColor: const Color(0xFF4D3192),
                 shape: RoundedRectangleBorder(
@@ -323,9 +364,7 @@ class _RouletteScreenState extends State<RouletteScreen> {
           ],
         );
       },
-    ).then((_) {
-      print('Lista de tarefas atualizada: $activities');
-    });
+    );
   }
 
   void spinWheel() {
@@ -352,36 +391,76 @@ class _RouletteScreenState extends State<RouletteScreen> {
             borderRadius: BorderRadius.circular(20),
           ),
           title: const Text(
-            'Resultado da Roleta',
+            'Atividade do dia',
             style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
-          content: Text(
-            'Atividade: ${activities[selectedIndex].name}\nTempo de Bloqueio: ${activities[selectedIndex].blockTime}',
-            style: const TextStyle(color: Colors.white, fontSize: 16),
-            textAlign: TextAlign.center,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                activities[selectedIndex].name,
+                style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Tempo restante',
+                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _formatDisplayTime(activities[selectedIndex].blockTime),
+                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
           actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                setState(() {
-                  isSpinning = true;
-                  selectedIndex = 0;
-                  _controller.add(selectedIndex);
-                  spinWheel();
-                });
-              },
-              style: TextButton.styleFrom(
-                backgroundColor: const Color(0xFF4D3192),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              ),
-              child: const Text(
-                'Girar Novamente',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      setState(() {
+                        isSpinning = true;
+                        selectedIndex = 0;
+                        _controller.add(selectedIndex);
+                        spinWheel();
+                      });
+                    },
+                    style: TextButton.styleFrom(
+                      backgroundColor: const Color(0xFF4D3192),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    ),
+                    child: const Text(
+                      'Girar Novamente',
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: TextButton.styleFrom(
+                      backgroundColor: const Color(0xFF4D3192),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    ),
+                    child: const Text(
+                      'Manter Tarefa',
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -389,6 +468,7 @@ class _RouletteScreenState extends State<RouletteScreen> {
       },
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -400,7 +480,7 @@ class _RouletteScreenState extends State<RouletteScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.only(top: 60.0, left: 20, right: 20),
+                padding: const EdgeInsets.only(top: 0, left: 20, right: 20),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -636,21 +716,24 @@ class _RouletteScreenState extends State<RouletteScreen> {
               ),
               const SizedBox(height: 20),
               Center(
-                child: ElevatedButton(
-                  onPressed: (isSpinning || activities.isEmpty) ? null : spinWheel,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4D3192),
-                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                child: Visibility(
+                  visible: !isSpinning, // Inverte o valor - mostra quando NÃO estiver girando
+                  child: ElevatedButton(
+                    onPressed: spinWheel,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4D3192),
+                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                     ),
-                  ),
-                  child: const Text(
-                    'Girar',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                    child: const Text(
+                      'Girar',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
@@ -672,6 +755,29 @@ class _RouletteScreenState extends State<RouletteScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _TimeInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue,
+      TextEditingValue newValue,
+      ) {
+    var text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+    if (text.length > 4) {
+      text = text.substring(0, 4);
+    }
+
+    if (text.length >= 3) {
+      text = '${text.substring(0, 2)}:${text.substring(2)}';
+    }
+
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 }

@@ -29,7 +29,7 @@ environment:
 # versions available, run `flutter pub outdated`.
 dependencies:
   flutter_fortune_wheel: ^1.3.1
-
+  shared_preferences: ^2.2.3
   fl_chart: ^0.71.0
   flutter:
     sdk: flutter
@@ -37,11 +37,11 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  flutter_launcher_icons: ^0.14.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_launcher_icons: "^0.14.3"
 
 flutter_launcher_icons:
   android: "launcher_icon"
@@ -64,10 +64,10 @@ flutter:
   fonts:
     - family: Airbnb Cereal
       fonts:
-        - asset: lib/fonts/AirbnbCereal_W_bd.otf
+        - asset: lib/fonts/AirbnbCereal_W_Bd.otf
           weight: 700
-        - asset: lib/fonts/AirbnbCereal_W_bk.otf
-        - asset: lib/fonts/AirbnbCereal_W_blk.otf
+        - asset: lib/fonts/AirbnbCereal_W_Bk.otf
+        - asset: lib/fonts/AirbnbCereal_W_Blk.otf
         - asset: lib/fonts/AirbnbCereal_W_Lt.otf
         - asset: lib/fonts/AirbnbCereal_W_Md.otf
         - asset: lib/fonts/AirbnbCereal_W_XBd.otf

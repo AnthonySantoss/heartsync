@@ -9,6 +9,7 @@ class HeartCodeScreen extends StatelessWidget {
   final String email;
   final String password;
   final String? profileImagePath;
+  final VoidCallback onRegisterComplete;
 
   const HeartCodeScreen({
     super.key,
@@ -17,6 +18,7 @@ class HeartCodeScreen extends StatelessWidget {
     required this.email,
     required this.password,
     this.profileImagePath,
+    required this.onRegisterComplete,
   });
 
   @override
@@ -36,18 +38,12 @@ class HeartCodeScreen extends StatelessWidget {
                 children: [
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: Image.asset(
-                      'lib/assets/images/Back.png',
-                      width: 27,
-                    ),
+                    icon: Image.asset('lib/assets/images/Back.png', width: 27),
                   ),
                   Expanded(
                     child: Align(
                       alignment: Alignment.center,
-                      child: Image.asset(
-                        'lib/assets/images/logo.png',
-                        width: 47.7,
-                      ),
+                      child: Image.asset('lib/assets/images/logo.png', width: 47.7),
                     ),
                   ),
                   const SizedBox(width: 47),
@@ -77,56 +73,40 @@ class HeartCodeScreen extends StatelessWidget {
             const Spacer(),
             ElevatedButton(
               onPressed: () {
-                // Navegar para a tela de troca de Heart Code
-                Navigator.push(
+                Navigator.pushNamed(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => HeartCodeExchangeScreen(
-                      name: name,
-                      birth: birth,
-                      email: email,
-                      password: password,
-                      profileImagePath: profileImagePath,
-                    ),
-                  ),
+                  '/heart-code-exchange',
+                  arguments: {
+                    'name': name,
+                    'birth': birth,
+                    'email': email,
+                    'password': password,
+                    'profileImagePath': profileImagePath,
+                    'onRegisterComplete': onRegisterComplete,
+                  },
                 );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF7D48FE),
                 minimumSize: const Size(double.infinity, 66),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               ),
               child: const Text(
                 'Continuar',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white),
               ),
             ),
             const SizedBox(height: 20),
             Text.rich(
               TextSpan(
                 text: 'Já possui uma conta?',
-                style: const TextStyle(
-                  fontSize: 18,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w400,
-                ),
+                style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.w400),
                 children: [
                   TextSpan(
                     text: ' Entrar',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
                     recognizer: TapGestureRecognizer()
-                      ..onTap = () {
-                        Navigator.pushNamed(context, '/login');
-                      },
+                      ..onTap = () => Navigator.pushNamed(context, '/login'),
                   ),
                 ],
               ),

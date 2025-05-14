@@ -1,13 +1,14 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:heartsync/src/features/Registro/presentation/view/heart_code_screen.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
-import 'package:heartsync/src/features/registro/presentation/view/heart_code_screen.dart'; // Importe a nova tela
 
 class ProfilePhotoScreen extends StatefulWidget {
   final String name;
   final String birth;
   final String email;
   final String password;
+  final VoidCallback onRegisterComplete;
 
   const ProfilePhotoScreen({
     super.key,
@@ -15,6 +16,7 @@ class ProfilePhotoScreen extends StatefulWidget {
     required this.birth,
     required this.email,
     required this.password,
+    required this.onRegisterComplete,
   });
 
   @override
@@ -36,18 +38,17 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
   void _continue() {
     print('Imagem selecionada: $_selectedImagePath');
     print('Dados do usuário: Nome: ${widget.name}, Nascimento: ${widget.birth}, E-mail: ${widget.email}, Senha: ${widget.password}');
-    // Navegar para a tela de Heart Code
-    Navigator.push(
+    Navigator.pushNamed(
       context,
-      MaterialPageRoute(
-        builder: (context) => HeartCodeScreen(
-          name: widget.name,
-          birth: widget.birth,
-          email: widget.email,
-          password: widget.password,
-          profileImagePath: _selectedImagePath,
-        ),
-      ),
+      '/heart-code',
+      arguments: {
+        'name': widget.name,
+        'birth': widget.birth,
+        'email': widget.email,
+        'password': widget.password,
+        'profileImagePath': _selectedImagePath,
+        'onRegisterComplete': widget.onRegisterComplete,
+      },
     );
   }
 
@@ -68,18 +69,12 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
                 children: [
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: Image.asset(
-                      'lib/assets/images/Back.png',
-                      width: 27,
-                    ),
+                    icon: Image.asset('lib/assets/images/Back.png', width: 27),
                   ),
                   Expanded(
                     child: Align(
                       alignment: Alignment.center,
-                      child: Image.asset(
-                        'lib/assets/images/logo.png',
-                        width: 47.7,
-                      ),
+                      child: Image.asset('lib/assets/images/logo.png', width: 47.7),
                     ),
                   ),
                   const SizedBox(width: 47),
@@ -107,11 +102,7 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
                       ? AssetImage(_selectedImagePath!)
                       : null,
                   child: _selectedImagePath == null
-                      ? const Icon(
-                    Icons.person,
-                    size: 80,
-                    color: Colors.white,
-                  )
+                      ? const Icon(Icons.person, size: 80, color: Colors.white)
                       : null,
                 ),
                 GestureDetector(
@@ -123,11 +114,7 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
                       shape: BoxShape.circle,
                       color: Color(0xFF7D48FE),
                     ),
-                    child: const Icon(
-                      Icons.add,
-                      color: Colors.white,
-                      size: 30,
-                    ),
+                    child: const Icon(Icons.add, color: Colors.white, size: 30),
                   ),
                 ),
               ],
@@ -138,39 +125,24 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF7D48FE),
                 minimumSize: const Size(double.infinity, 66),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               ),
               child: const Text(
                 'Continuar',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white),
               ),
             ),
             const SizedBox(height: 20),
             Text.rich(
               TextSpan(
                 text: 'Já possui uma conta?',
-                style: const TextStyle(
-                  fontSize: 18,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w400,
-                ),
+                style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.w400),
                 children: [
                   TextSpan(
                     text: ' Entrar',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
                     recognizer: TapGestureRecognizer()
-                      ..onTap = () {
-                        Navigator.pushNamed(context, '/login');
-                      },
+                      ..onTap = () => Navigator.pushNamed(context, '/login'),
                   ),
                 ],
               ),

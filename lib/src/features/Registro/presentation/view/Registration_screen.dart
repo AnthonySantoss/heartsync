@@ -1,20 +1,18 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:heartsync/src/features/Registro/presentation/view/Birth_screen.dart';
-import 'package:heartsync/src/features/login/presentation/view/Login_screen.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
 
+class RegistrationScreen extends StatefulWidget {
+  final VoidCallback onRegisterComplete;
 
-// Tela 1: Campo Nome
-class Registration_screen extends StatefulWidget {
-  const Registration_screen({super.key});
+  const RegistrationScreen({super.key, required this.onRegisterComplete});
 
   @override
-  Registration_screenState createState() => Registration_screenState();
+  RegistrationScreenState createState() => RegistrationScreenState();
 }
 
-class Registration_screenState extends State<Registration_screen> {
+class RegistrationScreenState extends State<RegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
 
@@ -26,10 +24,14 @@ class Registration_screenState extends State<Registration_screen> {
 
   void _navigateToNextScreen() {
     if (_formKey.currentState!.validate()) {
+      print('Navegando para BirthScreen com nome: ${_nameController.text}'); // Debug
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => BirthScreen(name: _nameController.text),
+          builder: (context) => BirthScreen(
+            name: _nameController.text,
+            onRegisterComplete: widget.onRegisterComplete,
+          ),
         ),
       );
     }
@@ -76,7 +78,7 @@ class Registration_screenState extends State<Registration_screen> {
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 40,
-                  fontWeight: FontWeight.w700, // Bold
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 20),
@@ -107,7 +109,7 @@ class Registration_screenState extends State<Registration_screen> {
                   ),
                   style: const TextStyle(
                     color: Colors.white,
-                    fontWeight: FontWeight.w400, // Book (Regular)
+                    fontWeight: FontWeight.w400,
                   ),
                   keyboardType: TextInputType.name,
                   validator: (value) {
@@ -132,7 +134,7 @@ class Registration_screenState extends State<Registration_screen> {
                   'Continuar',
                   style: TextStyle(
                     fontSize: 20,
-                    fontWeight: FontWeight.w700, // Bold
+                    fontWeight: FontWeight.w700,
                     color: Colors.white,
                   ),
                 ),
@@ -144,23 +146,19 @@ class Registration_screenState extends State<Registration_screen> {
                   style: const TextStyle(
                     fontSize: 18,
                     color: Colors.white,
-                    fontWeight: FontWeight.w400, // Book (Regular)
+                    fontWeight: FontWeight.w400,
                   ),
                   children: [
                     TextSpan(
                       text: ' Entrar',
                       style: const TextStyle(
-                        fontWeight: FontWeight.w700, // Bold
+                        fontWeight: FontWeight.w700,
                         color: Colors.white,
                       ),
                       recognizer: TapGestureRecognizer()
                         ..onTap = () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => LoginScreen(),
-                            ),
-                          );
+                          print('Navegando para /login'); // Debug
+                          Navigator.pushNamed(context, '/login');
                         },
                     ),
                   ],
@@ -173,6 +171,3 @@ class Registration_screenState extends State<Registration_screen> {
     );
   }
 }
-
-
-

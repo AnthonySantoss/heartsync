@@ -1,14 +1,19 @@
-import 'dart:math'; // Para gerar um código aleatório
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
-import 'package:heartsync/src/features/registro/presentation/view/verification_code_screen.dart'; // Importe a nova tela
+import 'package:heartsync/src/features/Registro/presentation/view/verification_code_screen.dart';
 
 class CredentialsScreen extends StatefulWidget {
   final String name;
   final String birth;
+  final VoidCallback onRegisterComplete;
 
-  const CredentialsScreen({super.key, required this.name, required this.birth});
+  const CredentialsScreen({
+    super.key,
+    required this.name,
+    required this.birth,
+    required this.onRegisterComplete,
+  });
 
   @override
   CredentialsScreenState createState() => CredentialsScreenState();
@@ -30,24 +35,21 @@ class CredentialsScreenState extends State<CredentialsScreen> {
 
   void _submitForm() {
     if (_formKey.currentState!.validate()) {
-      // Gerar um código de verificação simulado (6 dígitos)
-      //String verificationCode = (Random().nextInt(999999) + 100000).toString();
-      String verificationCode = (101010).toString();
-      // Simular o envio do código (o backend substituirá isso depois)
+      // Gerar um código de verificação simulado
+      String verificationCode = '101010'; // Fixado para teste
       print('Código de verificação simulado para ${_emailController.text}: $verificationCode');
 
-      // Navegar para a tela de verificação
-      Navigator.push(
+      Navigator.pushNamed(
         context,
-        MaterialPageRoute(
-          builder: (context) => VerificationCodeScreen(
-            email: _emailController.text,
-            name: widget.name,
-            birth: widget.birth,
-            password: _passwordController.text,
-            verificationCode: verificationCode,
-          ),
-        ),
+        '/verification',
+        arguments: {
+          'email': _emailController.text,
+          'name': widget.name,
+          'birth': widget.birth,
+          'password': _passwordController.text,
+          'verificationCode': verificationCode,
+          'onRegisterComplete': widget.onRegisterComplete,
+        },
       );
     }
   }
@@ -69,18 +71,12 @@ class CredentialsScreenState extends State<CredentialsScreen> {
                   children: [
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: Image.asset(
-                        'lib/assets/images/Back.png',
-                        width: 27,
-                      ),
+                      icon: Image.asset('lib/assets/images/Back.png', width: 27),
                     ),
                     Expanded(
                       child: Align(
                         alignment: Alignment.center,
-                        child: Image.asset(
-                          'lib/assets/images/logo.png',
-                          width: 47.7,
-                        ),
+                        child: Image.asset('lib/assets/images/logo.png', width: 47.7),
                       ),
                     ),
                     const SizedBox(width: 47),
@@ -101,7 +97,6 @@ class CredentialsScreenState extends State<CredentialsScreen> {
                 key: _formKey,
                 child: Column(
                   children: [
-                    // Campo E-mail
                     TextFormField(
                       controller: _emailController,
                       decoration: InputDecoration(
@@ -112,36 +107,23 @@ class CredentialsScreenState extends State<CredentialsScreen> {
                         fillColor: Colors.grey[900]!.withValues(alpha: 0.5),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(20),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF4D3192),
-                            width: 2.0,
-                          ),
+                          borderSide: const BorderSide(color: Color(0xFF4D3192), width: 2.0),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(20),
-                          borderSide: const BorderSide(
-                            color: Colors.deepPurple,
-                            width: 2.0,
-                          ),
+                          borderSide: const BorderSide(color: Colors.deepPurple, width: 2.0),
                         ),
                       ),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w400,
-                      ),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w400),
                       keyboardType: TextInputType.emailAddress,
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor, insira seu e-mail';
-                        }
-                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                        if (value == null || value.isEmpty) return 'Por favor, insira seu e-mail';
+                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value))
                           return 'E-mail inválido';
-                        }
                         return null;
                       },
                     ),
                     const SizedBox(height: 20),
-                    // Campo Senha
                     TextFormField(
                       controller: _passwordController,
                       obscureText: true,
@@ -153,35 +135,21 @@ class CredentialsScreenState extends State<CredentialsScreen> {
                         fillColor: Colors.grey[900]!.withValues(alpha: 0.5),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(20),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF4D3192),
-                            width: 2.0,
-                          ),
+                          borderSide: const BorderSide(color: Color(0xFF4D3192), width: 2.0),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(20),
-                          borderSide: const BorderSide(
-                            color: Colors.deepPurple,
-                            width: 2.0,
-                          ),
+                          borderSide: const BorderSide(color: Colors.deepPurple, width: 2.0),
                         ),
                       ),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w400,
-                      ),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w400),
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor, insira sua senha';
-                        }
-                        if (value.length < 6) {
-                          return 'A senha deve ter pelo menos 6 caracteres';
-                        }
+                        if (value == null || value.isEmpty) return 'Por favor, insira sua senha';
+                        if (value.length < 6) return 'A senha deve ter pelo menos 6 caracteres';
                         return null;
                       },
                     ),
                     const SizedBox(height: 20),
-                    // Campo Confirmação de Senha
                     TextFormField(
                       controller: _confirmPasswordController,
                       obscureText: true,
@@ -193,30 +161,17 @@ class CredentialsScreenState extends State<CredentialsScreen> {
                         fillColor: Colors.grey[900]!.withValues(alpha: 0.5),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(20),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF4D3192),
-                            width: 2.0,
-                          ),
+                          borderSide: const BorderSide(color: Color(0xFF4D3192), width: 2.0),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(20),
-                          borderSide: const BorderSide(
-                            color: Colors.deepPurple,
-                            width: 2.0,
-                          ),
+                          borderSide: const BorderSide(color: Colors.deepPurple, width: 2.0),
                         ),
                       ),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w400,
-                      ),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w400),
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor, confirme sua senha';
-                        }
-                        if (value != _passwordController.text) {
-                          return 'As senhas não coincidem';
-                        }
+                        if (value == null || value.isEmpty) return 'Por favor, confirme sua senha';
+                        if (value != _passwordController.text) return 'As senhas não coincidem';
                         return null;
                       },
                     ),
@@ -229,39 +184,24 @@ class CredentialsScreenState extends State<CredentialsScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF7D48FE),
                   minimumSize: const Size(double.infinity, 66),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
                 child: const Text(
                   'Registrar',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white),
                 ),
               ),
               const SizedBox(height: 140),
               Text.rich(
                 TextSpan(
                   text: 'Já possui uma conta?',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w400,
-                  ),
+                  style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.w400),
                   children: [
                     TextSpan(
                       text: ' Entrar',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
+                      style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
                       recognizer: TapGestureRecognizer()
-                        ..onTap = () {
-                          // Adicione a lógica para navegar para a tela de login
-                        },
+                        ..onTap = () => Navigator.pushNamed(context, '/login'),
                     ),
                   ],
                 ),

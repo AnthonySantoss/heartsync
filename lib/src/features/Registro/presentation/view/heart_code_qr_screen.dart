@@ -1,7 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:heartsync/src/features/Registro/presentation/view/heart_code_input_screen.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
-import 'package:heartsync/src/features/registro/presentation/view/heart_code_input_screen.dart';
 
 class HeartCodeQRScreen extends StatelessWidget {
   final String name;
@@ -9,6 +9,7 @@ class HeartCodeQRScreen extends StatelessWidget {
   final String email;
   final String password;
   final String? profileImagePath;
+  final VoidCallback onRegisterComplete;
 
   const HeartCodeQRScreen({
     super.key,
@@ -17,18 +18,18 @@ class HeartCodeQRScreen extends StatelessWidget {
     required this.email,
     required this.password,
     this.profileImagePath,
+    required this.onRegisterComplete,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Simulação do Heart Code (o backend substituirá isso)
     const String simulatedHeartCode = '#543822332PA';
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
       body: BackgroundWidget(
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: SingleChildScrollView( // Adicionado para evitar overflow
+        child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -40,18 +41,12 @@ class HeartCodeQRScreen extends StatelessWidget {
                   children: [
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: Image.asset(
-                        'lib/assets/images/Back.png',
-                        width: 27,
-                      ),
+                      icon: Image.asset('lib/assets/images/Back.png', width: 27),
                     ),
                     Expanded(
                       child: Align(
                         alignment: Alignment.center,
-                        child: Image.asset(
-                          'lib/assets/images/logo.png',
-                          width: 47.7,
-                        ),
+                        child: Image.asset('lib/assets/images/logo.png', width: 47.7),
                       ),
                     ),
                     const SizedBox(width: 47),
@@ -69,14 +64,13 @@ class HeartCodeQRScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 40),
-              // Simulação do QR Code (o backend substituirá isso por um QR Code real)
               Container(
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.blue, width: 2),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Image.asset(
-                  'lib/assets/images/qrcode.png', // Ajustado para o nome correto
+                  'lib/assets/images/qrcode.png',
                   width: 200,
                   height: 200,
                   fit: BoxFit.cover,
@@ -125,16 +119,11 @@ class HeartCodeQRScreen extends StatelessWidget {
                     ),
                     child: IconButton(
                       onPressed: () {
-                        // Simula a ação de copiar o código (o backend lidará com isso)
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Código copiado (simulação)!')),
                         );
                       },
-                      icon: const Icon(
-                        Icons.copy,
-                        color: Colors.white,
-                        size: 20,
-                      ),
+                      icon: const Icon(Icons.copy, color: Colors.white, size: 20),
                     ),
                   ),
                 ],
@@ -142,57 +131,41 @@ class HeartCodeQRScreen extends StatelessWidget {
               const SizedBox(height: 40),
               ElevatedButton(
                 onPressed: () {
-                  // Navegar para a HeartCodeInputScreen
-                  Navigator.push(
+                  Navigator.pushNamed(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => HeartCodeInputScreen(
-                        name: name,
-                        birth: birth,
-                        email: email,
-                        password: password,
-                        profileImagePath: profileImagePath,
-                        heartCode: simulatedHeartCode,
-                      ),
-                    ),
+                    '/heart-code-input',
+                    arguments: {
+                      'name': name,
+                      'birth': birth,
+                      'email': email,
+                      'password': password,
+                      'profileImagePath': profileImagePath,
+                      'heartCode': simulatedHeartCode,
+                      'onRegisterComplete': onRegisterComplete,
+                    },
                   );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF7D48FE),
                   minimumSize: const Size(double.infinity, 66),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
                 child: const Text(
                   'Continuar',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white),
                 ),
               ),
               const SizedBox(height: 20),
               Text.rich(
                 TextSpan(
                   text: 'Já possui uma conta?',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w400,
-                  ),
+                  style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.w400),
                   children: [
                     TextSpan(
                       text: ' Entrar',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
+                      style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
                       recognizer: TapGestureRecognizer()
-                        ..onTap = () {
-                          Navigator.pushNamed(context, '/login');
-                        },
+                        ..onTap = () => Navigator.pushNamed(context, '/login'),
                     ),
                   ],
                 ),

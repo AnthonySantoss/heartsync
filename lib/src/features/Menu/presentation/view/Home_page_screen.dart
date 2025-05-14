@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:heartsync/src/features/Menu/presentation/view/statistic_screen.dart';
 import 'package:heartsync/src/features/Roleta/presentation/view/Roulette_screen.dart';
 
@@ -49,7 +50,7 @@ class HomePage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildHeader(),
+                _buildHeader(context),
                 const SizedBox(height: 20),
                 const Text(
                   'Hoje',
@@ -73,7 +74,7 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -84,14 +85,34 @@ class HomePage extends StatelessWidget {
         Expanded(
           child: Align(
             alignment: Alignment.centerRight,
-            child: CircleAvatar(
-              backgroundColor: Colors.white,
-              backgroundImage: profileImageUrl != null
-                  ? NetworkImage(profileImageUrl!)
-                  : null,
-              child: profileImageUrl == null
-                  ? const Icon(Icons.person, color: Colors.black)
-                  : null,
+            child: GestureDetector(
+              onTap: () {
+                Navigator.pushNamed(
+                  context,
+                  '/profile',
+                  arguments: {
+                    'userName1': 'Isabela',
+                    'heartCode1': '#543823332PA',
+                    'birthDate1': '12.03.2004',
+                    'userName2': 'Ricardo',
+                    'heartCode2': '#123456789AB',
+                    'birthDate2': '07.08.2003',
+                    'anniversaryDate': '15.05.2019',
+                    'syncDate': '01.02.2025',
+                    'imageUrl1': profileImageUrl,
+                    'imageUrl2': profileImageUrl,
+                  },
+                );
+              },
+              child: CircleAvatar(
+                backgroundColor: Colors.white,
+                backgroundImage: profileImageUrl != null
+                    ? NetworkImage(profileImageUrl!)
+                    : null,
+                child: profileImageUrl == null
+                    ? const Icon(Icons.person, color: Colors.black)
+                    : null,
+              ),
             ),
           ),
         ),
@@ -102,11 +123,7 @@ class HomePage extends StatelessWidget {
   Widget _buildUsageCard(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => const StatisticScreen(),
-          ),
-        );
+        Navigator.pushNamed(context, '/statistic');
       },
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -202,11 +219,7 @@ class HomePage extends StatelessWidget {
         Expanded(
           child: GestureDetector(
             onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const RouletteScreen(),
-                ),
-              );
+              Navigator.pushNamed(context, '/roulette');
             },
             child: Container(
               width: 280,
@@ -392,5 +405,12 @@ class HomePage extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _logout(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isLoggedIn', false);
+    print('Logout realizado - Navegando para /home'); // Debug
+    Navigator.pushReplacementNamed(context, '/home');
   }
 }

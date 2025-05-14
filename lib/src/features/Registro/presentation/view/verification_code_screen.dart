@@ -1,8 +1,7 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:heartsync/src/features/Registro/presentation/view/ProfilePhotoScreen.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/ProfilePhotoScreen.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
-
 
 class VerificationCodeScreen extends StatefulWidget {
   final String email;
@@ -10,6 +9,7 @@ class VerificationCodeScreen extends StatefulWidget {
   final String birth;
   final String password;
   final String verificationCode;
+  final VoidCallback onRegisterComplete;
 
   const VerificationCodeScreen({
     super.key,
@@ -18,6 +18,7 @@ class VerificationCodeScreen extends StatefulWidget {
     required this.birth,
     required this.password,
     required this.verificationCode,
+    required this.onRegisterComplete,
   });
 
   @override
@@ -34,17 +35,16 @@ class VerificationCodeScreenState extends State<VerificationCodeScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Código verificado com sucesso!')),
         );
-        // Navegar para a tela de adicionar foto de perfil
-        Navigator.push(
+        Navigator.pushNamed(
           context,
-          MaterialPageRoute(
-            builder: (context) => ProfilePhotoScreen(
-              name: widget.name,
-              birth: widget.birth,
-              email: widget.email,
-              password: widget.password,
-            ),
-          ),
+          '/profile-photo',
+          arguments: {
+            'name': widget.name,
+            'birth': widget.birth,
+            'email': widget.email,
+            'password': widget.password,
+            'onRegisterComplete': widget.onRegisterComplete,
+          },
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -77,18 +77,12 @@ class VerificationCodeScreenState extends State<VerificationCodeScreen> {
                   children: [
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: Image.asset(
-                        'lib/assets/images/Back.png',
-                        width: 27,
-                      ),
+                      icon: Image.asset('lib/assets/images/Back.png', width: 27),
                     ),
                     Expanded(
                       child: Align(
                         alignment: Alignment.center,
-                        child: Image.asset(
-                          'lib/assets/images/logo.png',
-                          width: 47.7,
-                        ),
+                        child: Image.asset('lib/assets/images/logo.png', width: 47.7),
                       ),
                     ),
                     const SizedBox(width: 47),
@@ -107,10 +101,7 @@ class VerificationCodeScreenState extends State<VerificationCodeScreen> {
               const SizedBox(height: 10),
               Text(
                 'Enviamos um código para ${widget.email}',
-                style: const TextStyle(
-                  color: Colors.grey,
-                  fontSize: 16,
-                ),
+                style: const TextStyle(color: Colors.grey, fontSize: 16),
               ),
               const SizedBox(height: 20),
               Form(
@@ -125,31 +116,18 @@ class VerificationCodeScreenState extends State<VerificationCodeScreen> {
                     fillColor: Colors.grey[900]!.withValues(alpha: 0.5),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
-                      borderSide: const BorderSide(
-                        color: Color(0xFF4D3192),
-                        width: 2.0,
-                      ),
+                      borderSide: const BorderSide(color: Color(0xFF4D3192), width: 2.0),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
-                      borderSide: const BorderSide(
-                        color: Colors.deepPurple,
-                        width: 2.0,
-                      ),
+                      borderSide: const BorderSide(color: Colors.deepPurple, width: 2.0),
                     ),
                   ),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w400,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w400),
                   keyboardType: TextInputType.number,
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Por favor, insira o código';
-                    }
-                    if (value.length != 6) {
-                      return 'O código deve ter 6 dígitos';
-                    }
+                    if (value == null || value.isEmpty) return 'Por favor, insira o código';
+                    if (value.length != 6) return 'O código deve ter 6 dígitos';
                     return null;
                   },
                 ),
@@ -160,17 +138,11 @@ class VerificationCodeScreenState extends State<VerificationCodeScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF7D48FE),
                   minimumSize: const Size(double.infinity, 66),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
                 child: const Text(
                   'Verificar',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white),
                 ),
               ),
               const SizedBox(height: 140),

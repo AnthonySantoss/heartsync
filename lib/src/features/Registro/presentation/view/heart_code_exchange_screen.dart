@@ -1,8 +1,7 @@
-import 'dart:math';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:heartsync/src/features/Registro/presentation/view/heart_code_qr_screen.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
-import 'package:heartsync/src/features/registro/presentation/view/heart_code_qr_screen.dart'; // Importe a nova tela
 
 class HeartCodeExchangeScreen extends StatelessWidget {
   final String name;
@@ -10,6 +9,7 @@ class HeartCodeExchangeScreen extends StatelessWidget {
   final String email;
   final String password;
   final String? profileImagePath;
+  final VoidCallback onRegisterComplete;
 
   const HeartCodeExchangeScreen({
     super.key,
@@ -18,11 +18,11 @@ class HeartCodeExchangeScreen extends StatelessWidget {
     required this.email,
     required this.password,
     this.profileImagePath,
+    required this.onRegisterComplete,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Simulação do Heart Code (o backend substituirá isso)
     const String simulatedHeartCode = '#543829E';
 
     return Scaffold(
@@ -40,18 +40,12 @@ class HeartCodeExchangeScreen extends StatelessWidget {
                 children: [
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: Image.asset(
-                      'lib/assets/images/Back.png',
-                      width: 27,
-                    ),
+                    icon: Image.asset('lib/assets/images/Back.png', width: 27),
                   ),
                   Expanded(
                     child: Align(
                       alignment: Alignment.center,
-                      child: Image.asset(
-                        'lib/assets/images/logo.png',
-                        width: 47.7,
-                      ),
+                      child: Image.asset('lib/assets/images/logo.png', width: 47.7),
                     ),
                   ),
                   const SizedBox(width: 47),
@@ -80,7 +74,7 @@ class HeartCodeExchangeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 40),
             Transform.rotate(
-              angle: -10 * pi / 180, // Rotaciona 10 graus no sentido anti-horário
+              angle: -10 * 3.14159 / 180,
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -97,11 +91,7 @@ class HeartCodeExchangeScreen extends StatelessWidget {
                           ? AssetImage(profileImagePath!)
                           : null,
                       child: profileImagePath == null
-                          ? const Icon(
-                        Icons.person,
-                        size: 40,
-                        color: Colors.white,
-                      )
+                          ? const Icon(Icons.person, size: 40, color: Colors.white)
                           : null,
                     ),
                     const SizedBox(width: 16),
@@ -119,7 +109,7 @@ class HeartCodeExchangeScreen extends StatelessWidget {
                         Text(
                           simulatedHeartCode,
                           style: const TextStyle(
-                            color: Color(0xFF7D48FF), // Ajustei para branco para maior contraste
+                            color: Color(0xFF7D48FF),
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
@@ -134,16 +124,11 @@ class HeartCodeExchangeScreen extends StatelessWidget {
                       ),
                       child: IconButton(
                         onPressed: () {
-                          // Simula a ação de copiar o código (o backend lidará com isso)
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Código copiado (simulação)!')),
                           );
                         },
-                        icon: const Icon(
-                          Icons.copy,
-                          color: Colors.white,
-                          size: 20,
-                        ),
+                        icon: const Icon(Icons.copy, color: Colors.white, size: 20),
                       ),
                     ),
                   ],
@@ -153,56 +138,40 @@ class HeartCodeExchangeScreen extends StatelessWidget {
             const Spacer(),
             ElevatedButton(
               onPressed: () {
-                // Navegar para a HeartCodeQRScreen
-                Navigator.push(
+                Navigator.pushNamed(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => HeartCodeQRScreen(
-                      name: name,
-                      birth: birth,
-                      email: email,
-                      password: password,
-                      profileImagePath: profileImagePath,
-                    ),
-                  ),
+                  '/heart-code-qr',
+                  arguments: {
+                    'name': name,
+                    'birth': birth,
+                    'email': email,
+                    'password': password,
+                    'profileImagePath': profileImagePath,
+                    'onRegisterComplete': onRegisterComplete,
+                  },
                 );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF7D48FE),
                 minimumSize: const Size(double.infinity, 66),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               ),
               child: const Text(
                 'Continuar',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white),
               ),
             ),
             const SizedBox(height: 20),
             Text.rich(
               TextSpan(
                 text: 'Já possui uma conta?',
-                style: const TextStyle(
-                  fontSize: 18,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w400,
-                ),
+                style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.w400),
                 children: [
                   TextSpan(
                     text: ' Entrar',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
                     recognizer: TapGestureRecognizer()
-                      ..onTap = () {
-                        Navigator.pushNamed(context, '/login');
-                      },
+                      ..onTap = () => Navigator.pushNamed(context, '/login'),
                   ),
                 ],
               ),

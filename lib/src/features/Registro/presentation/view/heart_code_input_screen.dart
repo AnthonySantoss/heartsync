@@ -1,7 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
 import 'package:heartsync/src/features/Registro/presentation/view/registration_complete_screen.dart';
+import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
 
 class HeartCodeInputScreen extends StatefulWidget {
   final String name;
@@ -10,6 +10,7 @@ class HeartCodeInputScreen extends StatefulWidget {
   final String password;
   final String? profileImagePath;
   final String heartCode;
+  final VoidCallback onRegisterComplete;
 
   const HeartCodeInputScreen({
     super.key,
@@ -19,6 +20,7 @@ class HeartCodeInputScreen extends StatefulWidget {
     required this.password,
     this.profileImagePath,
     required this.heartCode,
+    required this.onRegisterComplete,
   });
 
   @override
@@ -32,26 +34,32 @@ class HeartCodeInputScreenState extends State<HeartCodeInputScreen> {
   void _submitHeartCode() {
     if (_formKey.currentState!.validate()) {
       String partnerHeartCode = _heartCodeController.text;
-      // Simula a validação do Heart Code do parceiro (o backend lidará com isso)
       print('Heart Code do usuário: ${widget.heartCode}');
       print('Heart Code do parceiro: $partnerHeartCode');
       print('Dados do usuário: Nome: ${widget.name}, Nascimento: ${widget.birth}, E-mail: ${widget.email}, Senha: ${widget.password}, Imagem: ${widget.profileImagePath}');
 
-      // Navegar para a tela de confirmação de registro
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => RegistrationCompleteScreen(
-            name: widget.name,
-            birth: widget.birth,
-            email: widget.email,
-            password: widget.password,
-            profileImagePath: widget.profileImagePath,
-            heartCode: widget.heartCode,
-            partnerHeartCode: partnerHeartCode,
+      // Simula a validação do Heart Code do parceiro
+      if (partnerHeartCode.isNotEmpty && partnerHeartCode != widget.heartCode) {
+        widget.onRegisterComplete(); // Completa o registro
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RegistrationCompleteScreen(
+              name: widget.name,
+              birth: widget.birth,
+              email: widget.email,
+              password: widget.password,
+              profileImagePath: widget.profileImagePath,
+              heartCode: widget.heartCode,
+              partnerHeartCode: partnerHeartCode,
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Heart Code inválido ou igual ao seu!')),
+        );
+      }
     }
   }
 
@@ -79,32 +87,21 @@ class HeartCodeInputScreenState extends State<HeartCodeInputScreen> {
                   children: [
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: Image.asset(
-                        'lib/assets/images/Back.png',
-                        width: 27,
-                      ),
+                      icon: Image.asset('lib/assets/images/Back.png', width: 27),
                     ),
                     Expanded(
                       child: Align(
                         alignment: Alignment.center,
-                        child: Image.asset(
-                          'lib/assets/images/logo.png',
-                          width: 47.7,
-                        ),
+                        child: Image.asset('lib/assets/images/logo.png', width: 47.7),
                       ),
                     ),
                     IconButton(
                       onPressed: () {
-                        // Simula a abertura de um scanner de QR Code (o backend lidará com isso)
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Abrir scanner de QR Code (simulação)!')),
                         );
                       },
-                      icon: const Icon(
-                        Icons.qr_code_scanner,
-                        color: Colors.white,
-                        size: 30,
-                      ),
+                      icon: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 30),
                     ),
                   ],
                 ),
@@ -142,30 +139,19 @@ class HeartCodeInputScreenState extends State<HeartCodeInputScreen> {
                     fillColor: Colors.grey[900]!.withValues(alpha: 0.5),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
-                      borderSide: const BorderSide(
-                        color: Color(0xFF4D3192),
-                        width: 2.0,
-                      ),
+                      borderSide: const BorderSide(color: Color(0xFF4D3192), width: 2.0),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
-                      borderSide: const BorderSide(
-                        color: Colors.deepPurple,
-                        width: 2.0,
-                      ),
+                      borderSide: const BorderSide(color: Colors.deepPurple, width: 2.0),
                     ),
                   ),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w400,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w400),
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
+                    if (value == null || value.isEmpty)
                       return 'Por favor, insira o Heart Code do seu parceiro';
-                    }
-                    if (!value.startsWith('#') || value.length < 5) {
+                    if (!value.startsWith('#') || value.length < 5)
                       return 'O Heart Code deve começar com # e ter pelo menos 4 caracteres';
-                    }
                     return null;
                   },
                 ),
@@ -176,39 +162,24 @@ class HeartCodeInputScreenState extends State<HeartCodeInputScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF7D48FE),
                   minimumSize: const Size(double.infinity, 66),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
                 child: const Text(
                   'Continuar',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white),
                 ),
               ),
               const SizedBox(height: 20),
               Text.rich(
                 TextSpan(
                   text: 'Já possui uma conta?',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w400,
-                  ),
+                  style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.w400),
                   children: [
                     TextSpan(
                       text: ' Entrar',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
+                      style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
                       recognizer: TapGestureRecognizer()
-                        ..onTap = () {
-                          Navigator.pushNamed(context, '/login');
-                        },
+                        ..onTap = () => Navigator.pushNamed(context, '/login'),
                     ),
                   ],
                 ),

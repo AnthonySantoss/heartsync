@@ -1,27 +1,26 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/Credentials_screen.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
 
 class DateInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
-    final text = newValue.text.replaceAll(RegExp(r'[^0-9]'), ''); // Remove tudo exceto números
+    final text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
     final length = text.length;
 
     String newText = '';
     if (length > 0) {
-      newText += text.substring(0, length > 2 ? 2 : length); // Dia
+      newText += text.substring(0, length > 2 ? 2 : length);
     }
     if (length > 2) {
       newText += ' / ';
-      newText += text.substring(2, length > 4 ? 4 : length); // Mês
+      newText += text.substring(2, length > 4 ? 4 : length);
     }
     if (length > 4) {
       newText += ' / ';
-      newText += text.substring(4, length > 8 ? 8 : length); // Ano
+      newText += text.substring(4, length > 8 ? 8 : length);
     }
 
     return TextEditingValue(
@@ -33,8 +32,13 @@ class DateInputFormatter extends TextInputFormatter {
 
 class BirthScreen extends StatefulWidget {
   final String name;
+  final VoidCallback onRegisterComplete;
 
-  const BirthScreen({super.key, required this.name});
+  const BirthScreen({
+    super.key,
+    required this.name,
+    required this.onRegisterComplete,
+  });
 
   @override
   BirthScreenState createState() => BirthScreenState();
@@ -52,14 +56,15 @@ class BirthScreenState extends State<BirthScreen> {
 
   void _navigateToNextScreen() {
     if (_formKey.currentState!.validate()) {
-      Navigator.push(
+      print('Navegando para /credentials com name: ${widget.name}, birth: ${_birthController.text}'); // Debug
+      Navigator.pushNamed(
         context,
-        MaterialPageRoute(
-          builder: (context) => CredentialsScreen(
-            name: widget.name,
-            birth: _birthController.text,
-          ),
-        ),
+        '/credentials',
+        arguments: {
+          'name': widget.name,
+          'birth': _birthController.text,
+          'onRegisterComplete': widget.onRegisterComplete,
+        },
       );
     }
   }
@@ -151,7 +156,6 @@ class BirthScreenState extends State<BirthScreen> {
                     if (!RegExp(r'^\d{2} / \d{2} / \d{4}$').hasMatch(value)) {
                       return 'Formato inválido (dd / mm / aaaa)';
                     }
-                    // Validação adicional para data válida
                     final parts = value.split(' / ');
                     final day = int.tryParse(parts[0]) ?? 0;
                     final month = int.tryParse(parts[1]) ?? 0;
@@ -165,6 +169,19 @@ class BirthScreenState extends State<BirthScreen> {
                     }
                     if (year < 1900 || year > DateTime.now().year) {
                       return 'Ano inválido (1900-${DateTime.now().year})';
+                    }
+                    final birthDate = DateTime(year, month, day);
+                    final now = DateTime.now();
+                    final age = now.year - birthDate.year;
+                    if (now.month < birthDate.month ||
+                        (now.month == birthDate.month && now.day < birthDate.day)) {
+                      if (age - 1 < 13) {
+                        return 'Você deve ter pelo menos 13 anos';
+                      }
+                    } else {
+                      if (age < 13) {
+                        return 'Você deve ter pelo menos 13 anos';
+                      }
                     }
                     return null;
                   },
@@ -184,7 +201,7 @@ class BirthScreenState extends State<BirthScreen> {
                   'Continuar',
                   style: TextStyle(
                     fontSize: 20,
-                    fontWeight: FontWeight.w700, // Bold
+                    fontWeight: FontWeight.w700,
                     color: Colors.white,
                   ),
                 ),
@@ -196,18 +213,19 @@ class BirthScreenState extends State<BirthScreen> {
                   style: const TextStyle(
                     fontSize: 18,
                     color: Colors.white,
-                    fontWeight: FontWeight.w400, // Book (Regular)
+                    fontWeight: FontWeight.w400,
                   ),
                   children: [
                     TextSpan(
                       text: ' Entrar',
                       style: const TextStyle(
-                        fontWeight: FontWeight.w700, // Bold
+                        fontWeight: FontWeight.w700,
                         color: Colors.white,
                       ),
                       recognizer: TapGestureRecognizer()
                         ..onTap = () {
-                          // Adicione a lógica para navegar para a tela de login
+                          print('Navegando para /login'); // Debug
+                          Navigator.pushNamed(context, '/login');
                         },
                     ),
                   ],

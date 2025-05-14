@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:heartsync/src/features/home/presentation/view/Home_screen.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
 
 class Introducao extends StatefulWidget {
   const Introducao({super.key});
@@ -27,6 +26,14 @@ class _IntroducaoState extends State<Introducao> {
     'Cultivem bons hábitos em dupla',
   ];
 
+  Future<void> _completeIntro() async {
+    // Marca a introdução como vista
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hasSeenIntro', true);
+    // Navega para HomePage
+    Navigator.pushReplacementNamed(context, '/homepage');
+  }
+
   void _proximaPagina() {
     if (_paginaAtual < imagens.length - 1) {
       _pageController.nextPage(
@@ -34,10 +41,7 @@ class _IntroducaoState extends State<Introducao> {
         curve: Curves.easeInOut,
       );
     } else {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => Home_screen()),
-      );
+      _completeIntro();
     }
   }
 
@@ -65,14 +69,9 @@ class _IntroducaoState extends State<Introducao> {
                 const SizedBox(width: 74 + 20),
                 Image.asset('lib/assets/images/logo.png', width: 94),
                 Padding(
-                  padding: const EdgeInsets.only(right: 20),
+                  padding: const EdgeInsets.only(right: 20), // Correção aqui
                   child: TextButton(
-                      onPressed: () {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(builder: (context) => Home_screen()),
-                        );
-                      },
+                    onPressed: _completeIntro,
                     child: const Text(
                       'Pular',
                       style: TextStyle(color: Colors.white),

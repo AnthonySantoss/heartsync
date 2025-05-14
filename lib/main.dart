@@ -1,23 +1,37 @@
 import 'package:flutter/material.dart';
-import 'package:heartsync/src/features/Menu/presentation/view/Home_page_screen.dart';
-import 'package:heartsync/src/features/Menu/presentation/view/statistic_screen.dart';
-import 'package:heartsync/src/features/Roleta/presentation/view/Roulette_screen.dart';
-import 'package:heartsync/src/features/home/presentation/view/Home_screen.dart';
-import 'package:heartsync/src/features/login/presentation/view/Profile_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:heartsync/src/config/routes.dart';
 
-import 'Intro_screen.dart';
-
-
-void main() {
-  runApp(MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  runApp(MyApp(prefs: prefs));
 }
 
 class MyApp extends StatelessWidget {
+  final SharedPreferences prefs;
+
+  const MyApp({Key? key, required this.prefs}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      home: Introducao(),
+      initialRoute: _getInitialRoute(),
+      routes: AppRoutes.getRoutes(prefs),
+      onUnknownRoute: AppRoutes.onUnknownRoute,
     );
   }
-}
 
+  String _getInitialRoute() {
+    bool isFirstTime = prefs.getBool('isFirstTime') ?? true;
+    bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    print('Initial Route - isFirstTime: $isFirstTime, isLoggedIn: $isLoggedIn'); // Debug
+    if (isFirstTime) {
+      return '/home';
+    } else if (isLoggedIn) {
+      return '/homepage';
+    } else {
+      return '/home';
+    }
+  }
+}

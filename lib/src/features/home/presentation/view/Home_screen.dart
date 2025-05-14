@@ -3,21 +3,28 @@ import 'package:heartsync/src/features/Registro/presentation/view/Registration_s
 import 'package:heartsync/src/features/login/presentation/view/Login_screen.dart';
 
 
-class Home_screen extends StatelessWidget {
-  const Home_screen({super.key});
+class HomeScreen extends StatelessWidget {
+  final VoidCallback onLoginComplete;
+  final VoidCallback onRegisterComplete;
+
+  const HomeScreen({
+    super.key,
+    required this.onLoginComplete,
+    required this.onRegisterComplete,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: BoxDecoration(
-            image: DecorationImage(
-              image: AssetImage('lib/assets/images/home.png'),
-              fit: BoxFit.cover,
-            ),
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('lib/assets/images/home.png'),
+            fit: BoxFit.cover,
           ),
+        ),
         child: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -58,12 +65,7 @@ class Home_screen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => Registration_screen(),
-                      ),
-                    );
+                    Navigator.pushNamed(context, '/register');
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF7D48FE),
@@ -86,12 +88,7 @@ class Home_screen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => LoginScreen(),
-                      ),
-                    );
+                    Navigator.pushNamed(context, '/login');
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF352756),
@@ -111,7 +108,7 @@ class Home_screen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
