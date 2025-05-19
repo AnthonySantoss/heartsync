@@ -2,6 +2,9 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:heartsync/src/features/Registro/presentation/view/heart_code_screen.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:http/http.dart' as http;
 
 class ProfilePhotoScreen extends StatefulWidget {
   final String name;
@@ -24,20 +27,30 @@ class ProfilePhotoScreen extends StatefulWidget {
 }
 
 class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
-  String? _selectedImagePath;
+  File? _selectedImageFile;
+  final ImagePicker _picker = ImagePicker();
 
-  void _pickImage() {
-    setState(() {
-      _selectedImagePath = 'lib/assets/images/placeholder_photo.png';
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Imagem selecionada (simulação)!')),
-    );
+  void _pickImage() async {
+    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      setState(() {
+        _selectedImageFile = File(pickedFile.path);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Imagem selecionada com sucesso!')),
+      );
+    }
   }
 
-  void _continue() {
-    print('Imagem selecionada: $_selectedImagePath');
-    print('Dados do usuário: Nome: ${widget.name}, Nascimento: ${widget.birth}, E-mail: ${widget.email}, Senha: ${widget.password}');
+  void _continue() async {
+    String? imageUrl;
+
+    if (_selectedImageFile != null) {
+      imageUrl = await uploadImage(_selectedImageFile!);
+    }
+
     Navigator.pushNamed(
       context,
       '/heart-code',
@@ -46,11 +59,13 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
         'birth': widget.birth,
         'email': widget.email,
         'password': widget.password,
-        'profileImagePath': _selectedImagePath,
+        'profileImageUrl': imageUrl,
         'onRegisterComplete': widget.onRegisterComplete,
       },
     );
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -98,10 +113,10 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
                 CircleAvatar(
                   radius: 90,
                   backgroundColor: Colors.grey[300],
-                  backgroundImage: _selectedImagePath != null
-                      ? AssetImage(_selectedImagePath!)
+                  backgroundImage: _selectedImageFile != null
+                      ? FileImage(_selectedImageFile!)
                       : null,
-                  child: _selectedImagePath == null
+                  child: _selectedImageFile == null
                       ? const Icon(Icons.person, size: 80, color: Colors.white)
                       : null,
                 ),
@@ -152,5 +167,22 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
         ),
       ),
     );
+  }
+}
+
+Future<String?> uploadImage(File imageFile) async {
+  final uri = Uri.parse('http://localhost:3000/upload');
+  var request = http.MultipartRequest('POST', uri);
+  request.files.add(await http.MultipartFile.fromPath('profile_image', imageFile.path));
+
+  var response = await request.send();
+
+  if (response.statusCode == 200) {
+    final responseData = await response.stream.bytesToString();
+    // Parse a URL da imagem a partir da resposta se necessário
+    return responseData; // ou parse o JSON
+  } else {
+    print('Erro ao enviar imagem: ${response.statusCode}');
+    return null;
   }
 }
