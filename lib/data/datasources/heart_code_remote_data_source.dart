@@ -1,6 +1,8 @@
 import 'dart:math';
+import 'package:heartsync/domain/entities/partner_heart_code.dart';
 import 'package:heartsync/domain/entities/user.dart';
 import '../../core/errors/exceptions.dart';
+
 
 abstract class HeartCodeRemoteDataSource {
   Future<User> generateHeartCode({
@@ -9,6 +11,12 @@ abstract class HeartCodeRemoteDataSource {
     required String email,
     required String password,
     String? profileImagePath,
+  });
+
+  // Valida o Heart Code do parceiro
+  Future<PartnerHeartCode> validatePartnerHeartCode({
+    required String partnerHeartCode,
+    required String userHeartCode,
   });
 }
 
@@ -49,4 +57,26 @@ class HeartCodeRemoteDataSourceImpl implements HeartCodeRemoteDataSource {
       throw ServerException();
     }
   }
+
+  Future<PartnerHeartCode> validatePartnerHeartCode({
+    required String partnerHeartCode,
+    required String userHeartCode,
+  }) async {
+    // Simula uma chamada remota com atraso
+    await Future.delayed(const Duration(seconds: 1)); // Comentário: Simula latência de rede
+
+    // Validação básica
+    if (partnerHeartCode.isEmpty) {
+      throw ServerException(); // Comentário: Lança exceção se o código estiver vazio
+    }
+    if (partnerHeartCode == userHeartCode) {
+      throw InvalidHeartCodeException(); // Comentário: Lança exceção se os códigos forem iguais
+    }
+
+    // Simula sucesso (em produção, consultaria um banco de dados ou API)
+    return PartnerHeartCode(code: partnerHeartCode, userHeartCode: userHeartCode);
+  }
 }
+
+// Exceção personalizada para Heart Code inválido
+class InvalidHeartCodeException implements Exception {}
