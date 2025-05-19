@@ -17,6 +17,7 @@ import 'package:heartsync/Intro_screen.dart';
 import 'package:heartsync/src/features/login/presentation/view/Profile_screen.dart';
 import 'package:heartsync/src/features/Menu/presentation/view/statistic_screen.dart';
 import 'package:heartsync/src/features/Roleta/presentation/view/Roulette_screen.dart';
+import 'package:heartsync/src/features/Registro/presentation/view/heart_code_exchange_screen.dart';
 
 class AppRoutes {
   static Map<String, WidgetBuilder> getRoutes(SharedPreferences prefs) {

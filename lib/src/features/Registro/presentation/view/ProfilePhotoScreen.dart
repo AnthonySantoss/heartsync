@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:heartsync/src/features/Registro/presentation/view/heart_code_screen.dart';
@@ -28,11 +30,11 @@ class ProfilePhotoScreen extends StatefulWidget {
 
 class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
   File? _selectedImageFile;
+  String? imageUrl;
   final ImagePicker _picker = ImagePicker();
 
   void _pickImage() async {
     final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-
     if (pickedFile != null) {
       setState(() {
         _selectedImageFile = File(pickedFile.path);
@@ -45,27 +47,40 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
   }
 
   void _continue() async {
-    String? imageUrl;
-
     if (_selectedImageFile != null) {
-      imageUrl = await uploadImage(_selectedImageFile!);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enviando imagem...')),
+      );
+
+      final uploadedUrl = await uploadImage(_selectedImageFile!);
+      if (uploadedUrl != null) {
+        setState(() {
+          imageUrl = uploadedUrl;
+        });
+
+        Navigator.pushNamed(
+          context,
+          '/heart-code-exchange',
+          arguments: {
+            'name': widget.name,
+            'birth': widget.birth,
+            'email': widget.email,
+            'password': widget.password,
+            'profileImagePath': imageUrl,
+            'onRegisterComplete': widget.onRegisterComplete,
+          },
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erro ao enviar imagem.')),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor, selecione uma foto de perfil.')),
+      );
     }
-
-    Navigator.pushNamed(
-      context,
-      '/heart-code',
-      arguments: {
-        'name': widget.name,
-        'birth': widget.birth,
-        'email': widget.email,
-        'password': widget.password,
-        'profileImageUrl': imageUrl,
-        'onRegisterComplete': widget.onRegisterComplete,
-      },
-    );
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -80,7 +95,6 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
               padding: const EdgeInsets.only(top: 79.1),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   IconButton(
                     onPressed: () => Navigator.pop(context),
@@ -151,7 +165,7 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
             Text.rich(
               TextSpan(
                 text: 'Já possui uma conta?',
-                style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.w400),
+                style: const TextStyle(fontSize: 18, color: Colors.white),
                 children: [
                   TextSpan(
                     text: ' Entrar',
@@ -171,18 +185,26 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
 }
 
 Future<String?> uploadImage(File imageFile) async {
-  final uri = Uri.parse('http://localhost:3000/upload');
-  var request = http.MultipartRequest('POST', uri);
-  request.files.add(await http.MultipartFile.fromPath('profile_image', imageFile.path));
+  try {
+    var uri = Uri.parse('http://192.168.1.95:3000/upload');
+    var request = http.MultipartRequest('POST', uri);
+    request.files.add(await http.MultipartFile.fromPath('profile_image', imageFile.path));
 
-  var response = await request.send();
+    var response = await request.send();
 
-  if (response.statusCode == 200) {
-    final responseData = await response.stream.bytesToString();
-    // Parse a URL da imagem a partir da resposta se necessário
-    return responseData; // ou parse o JSON
-  } else {
-    print('Erro ao enviar imagem: ${response.statusCode}');
+    if (response.statusCode == 200) {
+      final responseData = await response.stream.bytesToString();
+      print('Resposta do servidor: $responseData');
+
+      // Tenta converter de JSON
+      final decoded = jsonDecode(responseData);
+      return decoded['imageUrl']; // ou o campo correto que o back-end retorna
+    } else {
+      print('Erro no envio. Código: ${response.statusCode}');
+      return null;
+    }
+  } catch (e) {
+    print('Exceção ao enviar imagem: $e');
     return null;
   }
 }

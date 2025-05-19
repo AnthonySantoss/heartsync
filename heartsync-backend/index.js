@@ -4,20 +4,21 @@ const cors = require('cors');
 const path = require('path');
 
 const app = express();
-const port = 3000;
+const PORT = 3000;
 
+// Habilitar CORS para permitir chamadas do Flutter
 app.use(cors());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Configuração do Multer
+// Configurar o Multer
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/'); // pasta onde será salvo
+    cb(null, 'upload'); // pasta já existente
   },
   filename: (req, file, cb) => {
-    const uniqueName = Date.now() + '-' + file.originalname;
-    cb(null, uniqueName);
-  },
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
+  }
 });
 
 const upload = multer({ storage });
@@ -28,11 +29,16 @@ app.post('/upload', upload.single('profile_image'), (req, res) => {
     return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
   }
 
-  const imageUrl = `http://localhost:${port}/uploads/${req.file.filename}`;
+  const imageUrl = `http://localhost:${PORT}/upload/${req.file.filename}`;
+  console.log('Imagem recebida:', imageUrl);
+
   res.status(200).json({ imageUrl });
 });
 
-// Inicia o servidor
-app.listen(port, () => {
-  console.log(`Servidor rodando em http://localhost:${port}`);
+// Servir a pasta de uploads estaticamente
+app.use('/upload', express.static(path.join(__dirname, 'upload')));
+
+// Iniciar o servidor
+app.listen(PORT, () => {
+  console.log(`Servidor rodando em http://localhost:${PORT}`);
 });
