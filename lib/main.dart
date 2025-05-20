@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:heartsync/data/datasources/database_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:heartsync/src/config/routes.dart';
-import 'di/injection.dart' as di; // Importação para injeção de dependências
+import 'di/injection.dart' as di;
+
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized(); // Inicializa o ambiente Flutter para operações assíncronas
-  final prefs = await SharedPreferences.getInstance(); // Obtém a instância do SharedPreferences
-  await di.init(); // Inicializa as injeções de dependência
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicializa tudo na ordem correta
+  final prefs = await SharedPreferences.getInstance();
+  await di.init(); // Injeção de dependências
+  await DatabaseHelper.instance.database; // Garante que o banco está inicializado
+
   runApp(MyApp(prefs: prefs));
 }
 
@@ -18,27 +24,27 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'HeartSync', // Título do aplicativo
+      title: 'HeartSync',
       theme: ThemeData(
-        primarySwatch: Colors.blue, // Tema padrão
+        primarySwatch: Colors.blue,
       ),
       initialRoute: _getInitialRoute(),
-      routes: AppRoutes.getRoutes(prefs), // Define as rotas dinamicamente com base no SharedPreferences
-      onUnknownRoute: AppRoutes.onUnknownRoute, // Lida com rotas desconhecidas
+      routes: AppRoutes.getRoutes(prefs),
+      onUnknownRoute: AppRoutes.onUnknownRoute,
     );
   }
 
   String _getInitialRoute() {
-    bool isFirstTime = prefs.getBool('isFirstTime') ?? true; // Valor padrão true se não existir
-    bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false; // Valor padrão false se não existir
-    print('Initial Route - isFirstTime: $isFirstTime, isLoggedIn: $isLoggedIn'); // Debug
+    bool isFirstTime = prefs.getBool('isFirstTime') ?? true;
+    bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    print('Initial Route - isFirstTime: $isFirstTime, isLoggedIn: $isLoggedIn');
 
     if (isFirstTime) {
-      return '/home'; // Rota para primeira vez (ex.: tela de onboarding)
+      return '/home';
     } else if (isLoggedIn) {
-      return '/homepage'; // Rota para usuário logado
+      return '/homepage';
     } else {
-      return '/home'; // Rota padrão (ex.: tela de login)
+      return '/home';
     }
   }
 }
