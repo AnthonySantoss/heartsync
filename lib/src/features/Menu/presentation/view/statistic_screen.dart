@@ -1,42 +1,87 @@
 import 'package:flutter/material.dart';
+import 'package:heartsync/servico/StatisticService.dart';
+import 'package:heartsync/servico/device_usage.dart';
 import 'package:heartsync/src/features/login/presentation/view/Profile_screen.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
 import 'package:fl_chart/fl_chart.dart';
 
-class StatisticScreen extends StatelessWidget {
-  final String userName1;
-  final String? imageUrl;
-  final String remainingTime1;
-  final String totalTime1;
-  final String userName2;
-  final String remainingTime2;
-  final String totalTime2;
-  final List<double> usageData1;
-  final List<double> usageData2;
-  final String dailyTimeLimit;
-  final String timeLimitRange;
-  final String weeklyAverage;
-  final String dayUsed;
 
-  const StatisticScreen({
-    super.key,
-    this.userName1 = 'Isabela',
-    this.imageUrl,
-    this.remainingTime1 = '1h20min',
-    this.totalTime1 = '2h40min',
-    this.userName2 = 'Ricardo',
-    this.remainingTime2 = '2h10min',
-    this.totalTime2 = '1h50min',
-    this.usageData1 = const [1.5, 2.0, 1.0, 2.5, 1.8, 1.2, 1.0],
-    this.usageData2 = const [2.0, 1.0, 1.5, 1.8, 1.2, 1.0, 1.5],
-    this.dailyTimeLimit = '4 horas',
-    this.timeLimitRange = '00:00 – 4:00',
-    this.weeklyAverage = '55 min',
-    this.dayUsed = '3',
-  });
+class StatisticScreen extends StatefulWidget {
+  final String codigoConexao;
+
+  const StatisticScreen({super.key, required this.codigoConexao});
+
+  @override
+  _StatisticScreenState createState() => _StatisticScreenState();
+}
+
+class _StatisticScreenState extends State<StatisticScreen> {
+  final StatisticService _statisticService = StatisticService();
+  Map<String, dynamic>? _statisticData;
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAndRequestPermission();
+    _loadData();
+  }
+
+  Future<void> _checkAndRequestPermission() async {
+    final hasPermission = await DeviceUsage.checkUsagePermission();
+    if (!hasPermission) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor, conceda a permissão de acesso ao uso do dispositivo.')),
+      );
+      await DeviceUsage.requestUsagePermission();
+    }
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    try {
+      final data = await _statisticService.getStatisticData(
+        widget.codigoConexao,
+        DateTime.now().toIso8601String().split('T')[0],
+      );
+      setState(() {
+        _statisticData = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Erro ao carregar dados: $e';
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_error != null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(_error!),
+              ElevatedButton(
+                onPressed: _loadData,
+                child: const Text('Tentar novamente'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: BackgroundWidget(
         padding: const EdgeInsets.all(0),
@@ -70,7 +115,7 @@ class StatisticScreen extends StatelessWidget {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              dayUsed,
+                              _statisticData!['dayUsed'],
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 24,
@@ -78,7 +123,7 @@ class StatisticScreen extends StatelessWidget {
                               ),
                             ),
                           ],
-                        )
+                        ),
                       ],
                     ),
                     GestureDetector(
@@ -91,10 +136,10 @@ class StatisticScreen extends StatelessWidget {
                       child: CircleAvatar(
                         radius: 20,
                         backgroundColor: const Color(0xFFDBDBDB),
-                        backgroundImage: imageUrl != null
-                            ? NetworkImage(imageUrl!)
+                        backgroundImage: _statisticData!['imageUrl'] != null
+                            ? NetworkImage(_statisticData!['imageUrl'])
                             : null,
-                        child: imageUrl == null
+                        child: _statisticData!['imageUrl'] == null
                             ? const Icon(
                           Icons.person,
                           size: 35,
@@ -122,7 +167,7 @@ class StatisticScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             Text(
-                              userName1,
+                              _statisticData!['userName1'],
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 18,
@@ -131,7 +176,7 @@ class StatisticScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 5),
                             Text(
-                              remainingTime1,
+                              _statisticData!['remainingTime1'],
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 24,
@@ -148,7 +193,7 @@ class StatisticScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 5),
                             Text(
-                              totalTime1,
+                              _statisticData!['totalTime1'],
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
@@ -171,7 +216,7 @@ class StatisticScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             Text(
-                              userName2,
+                              _statisticData!['userName2'],
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 18,
@@ -180,7 +225,7 @@ class StatisticScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 5),
                             Text(
-                              remainingTime2,
+                              _statisticData!['remainingTime2'],
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 24,
@@ -197,7 +242,7 @@ class StatisticScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 5),
                             Text(
-                              totalTime2,
+                              _statisticData!['totalTime2'],
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
@@ -244,11 +289,16 @@ class StatisticScreen extends StatelessWidget {
                                   reservedSize: 40,
                                   getTitlesWidget: (value, meta) {
                                     switch (value.toInt()) {
-                                      case 0: return const Text('0', style: TextStyle(color: Colors.white, fontSize: 12));
-                                      case 1: return const Text('1h', style: TextStyle(color: Colors.white, fontSize: 12));
-                                      case 2: return const Text('2h', style: TextStyle(color: Colors.white, fontSize: 12));
-                                      case 3: return const Text('3h', style: TextStyle(color: Colors.white, fontSize: 12));
-                                      default: return const Text('');
+                                      case 0:
+                                        return const Text('0', style: TextStyle(color: Colors.white, fontSize: 12));
+                                      case 1:
+                                        return const Text('1h', style: TextStyle(color: Colors.white, fontSize: 12));
+                                      case 2:
+                                        return const Text('2h', style: TextStyle(color: Colors.white, fontSize: 12));
+                                      case 3:
+                                        return const Text('3h', style: TextStyle(color: Colors.white, fontSize: 12));
+                                      default:
+                                        return const Text('');
                                     }
                                   },
                                 ),
@@ -258,14 +308,22 @@ class StatisticScreen extends StatelessWidget {
                                   showTitles: true,
                                   getTitlesWidget: (value, meta) {
                                     switch (value.toInt()) {
-                                      case 0: return const Text('Dom', style: TextStyle(color: Colors.white, fontSize: 12));
-                                      case 1: return const Text('Seg', style: TextStyle(color: Colors.white, fontSize: 12));
-                                      case 2: return const Text('Ter', style: TextStyle(color: Colors.white, fontSize: 12));
-                                      case 3: return const Text('Qua', style: TextStyle(color: Colors.white, fontSize: 12));
-                                      case 4: return const Text('Qui', style: TextStyle(color: Colors.white, fontSize: 12));
-                                      case 5: return const Text('Sex', style: TextStyle(color: Colors.white, fontSize: 12));
-                                      case 6: return const Text('Sáb', style: TextStyle(color: Colors.white, fontSize: 12));
-                                      default: return const Text('');
+                                      case 0:
+                                        return const Text('Dom', style: TextStyle(color: Colors.white, fontSize: 12));
+                                      case 1:
+                                        return const Text('Seg', style: TextStyle(color: Colors.white, fontSize: 12));
+                                      case 2:
+                                        return const Text('Ter', style: TextStyle(color: Colors.white, fontSize: 12));
+                                      case 3:
+                                        return const Text('Qua', style: TextStyle(color: Colors.white, fontSize: 12));
+                                      case 4:
+                                        return const Text('Qui', style: TextStyle(color: Colors.white, fontSize: 12));
+                                      case 5:
+                                        return const Text('Sex', style: TextStyle(color: Colors.white, fontSize: 12));
+                                      case 6:
+                                        return const Text('Sáb', style: TextStyle(color: Colors.white, fontSize: 12));
+                                      default:
+                                        return const Text('');
                                     }
                                   },
                                 ),
@@ -280,9 +338,11 @@ class StatisticScreen extends StatelessWidget {
                             maxY: 3,
                             lineBarsData: [
                               LineChartBarData(
-                                spots: usageData1.asMap().entries.map((entry) {
-                                  return FlSpot(entry.key.toDouble(), entry.value);
-                                }).toList(),
+                                spots: (_statisticData!['usageData1'] as List<double>)
+                                    .asMap()
+                                    .entries
+                                    .map((entry) => FlSpot(entry.key.toDouble(), entry.value))
+                                    .toList(),
                                 isCurved: true,
                                 color: const Color(0xFF972F6A),
                                 barWidth: 2,
@@ -293,9 +353,11 @@ class StatisticScreen extends StatelessWidget {
                                 ),
                               ),
                               LineChartBarData(
-                                spots: usageData2.asMap().entries.map((entry) {
-                                  return FlSpot(entry.key.toDouble(), entry.value);
-                                }).toList(),
+                                spots: (_statisticData!['usageData2'] as List<double>)
+                                    .asMap()
+                                    .entries
+                                    .map((entry) => FlSpot(entry.key.toDouble(), entry.value))
+                                    .toList(),
                                 isCurved: true,
                                 color: const Color(0xFF4BBE79),
                                 barWidth: 2,
@@ -319,7 +381,7 @@ class StatisticScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     Container(
-                      width: double.infinity, // Garante que ocupe a largura total disponível
+                      width: double.infinity,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: const Color(0xFF210E45),
@@ -337,7 +399,7 @@ class StatisticScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 5),
                           Text(
-                            dailyTimeLimit,
+                            _statisticData!['dailyTimeLimit'],
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               color: Colors.white,
@@ -357,7 +419,7 @@ class StatisticScreen extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                timeLimitRange,
+                                _statisticData!['timeLimitRange'],
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
                                   color: Colors.white,
@@ -370,9 +432,9 @@ class StatisticScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 20), // Espaçamento entre os containers
+                    const SizedBox(height: 20),
                     Container(
-                      width: double.infinity, // Garante que ocupe a largura total disponível
+                      width: double.infinity,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: const Color(0xFF210E45),
@@ -391,7 +453,7 @@ class StatisticScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 5),
                           Text(
-                            weeklyAverage,
+                            _statisticData!['weeklyAverage'],
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               color: Colors.white,

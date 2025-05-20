@@ -20,7 +20,6 @@ class DatabaseHelper {
   }
 
   Future _createDB(Database db, int version) async {
-    // Tabela de usuários
     await db.execute('''
       CREATE TABLE usuarios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +33,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // Tabela de casais
     await db.execute('''
       CREATE TABLE casais (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,7 +44,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // Tabela de momentos
     await db.execute('''
       CREATE TABLE momentos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,7 +56,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // Tabela de uso de celular
     await db.execute('''
       CREATE TABLE uso_celular (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,9 +68,7 @@ class DatabaseHelper {
     ''');
   }
 
-  // ======= MÉTODOS DE INSERÇÃO E CONSULTA =======
-
-  // USUÁRIO
+  // Inserir usuário
   Future<void> insertUsuario({
     required String nome,
     required String email,
@@ -84,7 +78,7 @@ class DatabaseHelper {
     required String heartcode,
     required bool conectado,
   }) async {
-    final db = await instance.database;
+    final db = await database;
     await db.insert('usuarios', {
       'nome': nome,
       'email': email,
@@ -97,17 +91,17 @@ class DatabaseHelper {
   }
 
   Future<List<Map<String, dynamic>>> getUsuarios() async {
-    final db = await instance.database;
+    final db = await database;
     return await db.query('usuarios', orderBy: 'id DESC');
   }
 
-  // CASAL
+  // Inserir casal
   Future<void> insertCasal({
     required int idUsuario1,
     required int idUsuario2,
     required String codigoConexao,
   }) async {
-    final db = await instance.database;
+    final db = await database;
     await db.insert('casais', {
       'idUsuario1': idUsuario1,
       'idUsuario2': idUsuario2,
@@ -116,7 +110,7 @@ class DatabaseHelper {
   }
 
   Future<Map<String, dynamic>?> getCasalPorCodigo(String codigo) async {
-    final db = await instance.database;
+    final db = await database;
     final result = await db.query(
       'casais',
       where: 'codigoConexao = ?',
@@ -126,7 +120,7 @@ class DatabaseHelper {
     return result.isNotEmpty ? result.first : null;
   }
 
-  // MOMENTO
+  // Inserir momento
   Future<void> insertMomento({
     required int idCasal,
     required String titulo,
@@ -134,7 +128,7 @@ class DatabaseHelper {
     required String dataMomento,
     int foiRealizado = 0,
   }) async {
-    final db = await instance.database;
+    final db = await database;
     await db.insert('momentos', {
       'idCasal': idCasal,
       'tituloMomento': titulo,
@@ -145,7 +139,7 @@ class DatabaseHelper {
   }
 
   Future<List<Map<String, dynamic>>> getMomentosPorCasal(int idCasal) async {
-    final db = await instance.database;
+    final db = await database;
     return await db.query(
       'momentos',
       where: 'idCasal = ?',
@@ -153,14 +147,14 @@ class DatabaseHelper {
     );
   }
 
-  // USO CELULAR
+  // Inserir uso de celular
   Future<void> insertUsoCelular({
     required int idUsuario,
     required String dataUso,
     required int tempoUsadoEmMinutos,
     required int metaUso,
   }) async {
-    final db = await instance.database;
+    final db = await database;
     await db.insert('uso_celular', {
       'idUsuario': idUsuario,
       'dataUso': dataUso,
@@ -169,13 +163,60 @@ class DatabaseHelper {
     });
   }
 
+  // Obter uso de celular por usuário
   Future<List<Map<String, dynamic>>> getUsoCelularPorUsuario(int idUsuario) async {
-    final db = await instance.database;
+    final db = await database;
     return await db.query(
       'uso_celular',
       where: 'idUsuario = ?',
       whereArgs: [idUsuario],
       orderBy: 'dataUso DESC',
     );
+  }
+
+  // Obter dados de uso dos últimos 7 dias
+  Future<List<Map<String, dynamic>>> getUsoCelularUltimaSemana(int idUsuario) async {
+    final db = await database;
+    final now = DateTime.now();
+    final lastWeek = now.subtract(const Duration(days: 7));
+    return await db.query(
+      'uso_celular',
+      where: 'idUsuario = ? AND dataUso >= ?',
+      whereArgs: [idUsuario, lastWeek.toIso8601String().split('T')[0]],
+      orderBy: 'dataUso ASC',
+    );
+  }
+
+  // Calcular média semanal
+  Future<double> getMediaSemanal(int idUsuario) async {
+    final usageData = await getUsoCelularUltimaSemana(idUsuario);
+    if (usageData.isEmpty) return 0.0;
+    final totalMinutos = usageData.fold<int>(
+      0,
+          (sum, item) => sum + (item['tempoUsadoEmMinutos'] as int),
+    );
+    return totalMinutos / usageData.length;
+  }
+
+  // Obter tempo restante do dia atual
+  Future<Map<String, dynamic>> getTempoRestante(int idUsuario, String dataUso) async {
+    final db = await database;
+    final result = await db.query(
+      'uso_celular',
+      where: 'idUsuario = ? AND dataUso = ?',
+      whereArgs: [idUsuario, dataUso],
+      limit: 1,
+    );
+    if (result.isEmpty) {
+      return {'tempoRestante': 0, 'metaUso': 0, 'tempoUsado': 0};
+    }
+    final metaUso = result.first['metaUso'] as int;
+    final tempoUsado = result.first['tempoUsadoEmMinutos'] as int;
+    final tempoRestante = metaUso - tempoUsado;
+    return {
+      'tempoRestante': tempoRestante > 0 ? tempoRestante : 0,
+      'metaUso': metaUso,
+      'tempoUsado': tempoUsado,
+    };
   }
 }

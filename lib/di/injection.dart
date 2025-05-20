@@ -1,11 +1,11 @@
 import 'package:get_it/get_it.dart';
 import 'package:heartsync/data/datasources/database_helper.dart';
-import '../data/datasources/heart_code_remote_data_source.dart';
+import 'package:heartsync/data/datasources/heart_code_remote_data_source.dart';
 import 'package:heartsync/domain/repositories/heart_code_repository_impl.dart';
-import '../domain/repositories/heart_code_repository.dart';
-import '../domain/usecases/generate_heart_code_use_case.dart';
-import '../presentation/viewmodels/heart_code_qr_viewmodel.dart';
-
+import 'package:heartsync/domain/repositories/heart_code_repository.dart';
+import 'package:heartsync/domain/usecases/generate_heart_code_use_case.dart';
+import 'package:heartsync/presentation/viewmodels/heart_code_qr_viewmodel.dart';
+import 'package:heartsync/servico/StatisticService.dart';
 
 final sl = GetIt.instance;
 
@@ -25,6 +25,9 @@ Future<void> init() async {
 
   // Use cases
   sl.registerLazySingleton(() => GenerateHeartCodeUseCase(sl()));
+
+  // Services
+  sl.registerLazySingleton(() => StatisticService());
 
   // ViewModels
   sl.registerFactory(() => HeartCodeQRViewModel(sl()));

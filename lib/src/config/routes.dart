@@ -133,19 +133,7 @@ class AppRoutes {
       '/statistic': (context) {
         final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>? ?? {};
         return StatisticScreen(
-          userName1: args['userName1'] as String? ?? 'Isabela',
-          imageUrl: args['imageUrl'] as String?,
-          remainingTime1: args['remainingTime1'] as String? ?? '1h20min',
-          totalTime1: args['totalTime1'] as String? ?? '2h40min',
-          userName2: args['userName2'] as String? ?? 'Ricardo',
-          remainingTime2: args['remainingTime2'] as String? ?? '2h10min',
-          totalTime2: args['totalTime2'] as String? ?? '1h50min',
-          usageData1: args['usageData1'] as List<double>? ?? const [1.5, 2.0, 1.0, 2.5, 1.8, 1.2, 1.0],
-          usageData2: args['usageData2'] as List<double>? ?? const [2.0, 1.0, 1.5, 1.8, 1.2, 1.0, 1.5],
-          dailyTimeLimit: args['dailyTimeLimit'] as String? ?? '4 horas',
-          timeLimitRange: args['timeLimitRange'] as String? ?? '00:00 – 4:00',
-          weeklyAverage: args['weeklyAverage'] as String? ?? '55 min',
-          dayUsed: args['dayUsed'] as String? ?? '3',
+          codigoConexao: args['codigoConexao'] as String? ?? 'default_codigo', // Substitua por um código padrão ou trate erros
         );
       },
       '/roulette': (context) {
