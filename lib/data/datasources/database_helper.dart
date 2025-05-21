@@ -16,19 +16,20 @@ class DatabaseHelper {
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+    return await openDatabase(path, version: 2, onCreate: _createDB, onUpgrade: _onUpgrade);
   }
 
-  Future _createDB(Database db, int version) async {
+  Future<void> _createDB(Database db, int version) async {
     await db.execute('''
       CREATE TABLE usuarios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nome TEXT NOT NULL,
-        email TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
         dataNascimento TEXT,
         senha TEXT NOT NULL,
         temFoto INTEGER NOT NULL CHECK (temFoto IN (0,1)),
-        heartcode TEXT NOT NULL CHECK (length(heartcode) >= 7 AND length(heartcode) <= 11),
+        profileImagePath TEXT,
+        heartcode TEXT NOT NULL UNIQUE CHECK (length(heartcode) >= 7 AND length(heartcode) <= 11),
         conectado INTEGER NOT NULL CHECK (conectado IN (0,1))
       )
     ''');
@@ -68,31 +69,87 @@ class DatabaseHelper {
     ''');
   }
 
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE usuarios ADD COLUMN profileImagePath TEXT');
+    }
+  }
+
   // Inserir usuário
-  Future<void> insertUsuario({
+  Future<int> insertUsuario({
     required String nome,
     required String email,
     required String dataNascimento,
     required String senha,
     required bool temFoto,
+    String? profileImagePath,
     required String heartcode,
     required bool conectado,
   }) async {
     final db = await database;
-    await db.insert('usuarios', {
+    return await db.insert('usuarios', {
       'nome': nome,
       'email': email,
       'dataNascimento': dataNascimento,
       'senha': senha,
       'temFoto': temFoto ? 1 : 0,
+      'profileImagePath': profileImagePath,
       'heartcode': heartcode,
       'conectado': conectado ? 1 : 0,
-    });
+    }, conflictAlgorithm: ConflictAlgorithm.rollback);
   }
 
+  // Buscar todos os usuários
   Future<List<Map<String, dynamic>>> getUsuarios() async {
     final db = await database;
     return await db.query('usuarios', orderBy: 'id DESC');
+  }
+
+  // Verificar se o email já existe
+  Future<bool> emailExists(String email) async {
+    final db = await database;
+    final result = await db.query(
+      'usuarios',
+      where: 'email = ?',
+      whereArgs: [email],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+
+  // Verificar se o heartcode já existe
+  Future<bool> heartCodeExists(String heartcode) async {
+    final db = await database;
+    final result = await db.query(
+      'usuarios',
+      where: 'heartcode = ?',
+      whereArgs: [heartcode],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+
+  // Buscar usuário por heartcode
+  Future<Map<String, dynamic>?> getUsuarioPorHeartCode(String heartcode) async {
+    final db = await database;
+    final result = await db.query(
+      'usuarios',
+      where: 'heartcode = ?',
+      whereArgs: [heartcode],
+      limit: 1,
+    );
+    return result.isNotEmpty ? result.first : null;
+  }
+
+  // Atualizar status de conexão do usuário
+  Future<void> updateConectado(int idUsuario, bool conectado) async {
+    final db = await database;
+    await db.update(
+      'usuarios',
+      {'conectado': conectado ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [idUsuario],
+    );
   }
 
   // Inserir casal

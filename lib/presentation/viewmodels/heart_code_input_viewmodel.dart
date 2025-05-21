@@ -1,24 +1,20 @@
-// lib/presentation/viewmodels/heart_code_input_viewmodel.dart
-import 'package:flutter/material.dart';
-import 'package:heartsync/domain/repositories/heart_code_repository_impl.dart';
-import '../../../domain/entities/partner_heart_code.dart';
-import '../../../domain/usecases/validate_partner_heart_code_use_case.dart';
-import 'package:dartz/dartz.dart';
-import '../../../core/errors/failure.dart';
+import 'package:flutter/foundation.dart';
+import 'package:heartsync/domain/usecases/register_user_use_case.dart';
+import 'package:uuid/uuid.dart';
 
 class HeartCodeInputViewModel extends ChangeNotifier {
-  final ValidatePartnerHeartCodeUseCase _validatePartnerHeartCodeUseCase;
+  final RegisterUserUseCase _registerUserUseCase;
   bool _isLoading = false;
   String? _error;
 
-  HeartCodeInputViewModel(this._validatePartnerHeartCodeUseCase);
+  HeartCodeInputViewModel(this._registerUserUseCase);
 
   bool get isLoading => _isLoading;
   String? get error => _error;
 
   Future<void> validateHeartCode({
-    required String partnerHeartCode,
     required String userHeartCode,
+    required String partnerHeartCode,
     required VoidCallback onSuccess,
   }) async {
     _isLoading = true;
@@ -26,51 +22,24 @@ class HeartCodeInputViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Comentário: Valida o Heart Code do parceiro
-      final result = await _validatePartnerHeartCodeUseCase(
-        ValidatePartnerHeartCodeParams(
-          partnerHeartCode: partnerHeartCode,
-          userHeartCode: userHeartCode,
-        ),
+      // Gerar um código de conexão único
+      final codigoConexao = 'CONN${const Uuid().v4().substring(0, 8).toUpperCase()}';
+
+      // Conectar os usuários usando o RegisterUserUseCase
+      await _registerUserUseCase.connectUsers(
+        userHeartCode: userHeartCode,
+        partnerHeartCode: partnerHeartCode,
+        codigoConexao: codigoConexao,
       );
 
-      result.fold(
-            (failure) {
-          _error = _mapFailureToMessage(failure);
-          _isLoading = false;
-          notifyListeners();
-          print('Erro ao validar Heart Code: $_error'); // Debug
-        },
-            (partner) {
-          _isLoading = false;
-          notifyListeners();
-          onSuccess(); // Comentário: Chama a callback de sucesso
-          print('Heart Code validado com sucesso: ${partner.code}');
-        },
-      );
+      // Se não houver exceção, a conexão foi bem-sucedida
+      onSuccess();
     } catch (e) {
-      _error = 'Erro inesperado: ${e.toString()}';
+      _error = e.toString().replaceFirst('Exception: ', '');
+      print('Erro ao validar HeartCode: $_error');
+    } finally {
       _isLoading = false;
       notifyListeners();
-      print('Erro inesperado no ViewModel: $_error');
     }
-  }
-
-  String _mapFailureToMessage(Failure failure) {
-    switch (failure.runtimeType) {
-      case ServerFailure:
-        return 'Falha no servidor. Tente novamente mais tarde.';
-      case InvalidHeartCodeFailure:
-        return 'Heart Code inválido ou igual ao seu!';
-      case NetworkFailure:
-        return 'Sem conexão com a internet. Verifique sua rede.';
-      default:
-        return 'Erro ao validar o Heart Code';
-    }
-  }
-
-  void clearError() {
-    _error = null;
-    notifyListeners();
   }
 }

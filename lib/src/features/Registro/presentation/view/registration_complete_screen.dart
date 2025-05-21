@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:heartsync/src/features/Menu/presentation/view/Home_page_screen.dart';
+import 'package:heartsync/data/datasources/database_helper.dart';
+import 'package:heartsync/domain/usecases/register_user_use_case.dart';
+import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
+import 'package:get_it/get_it.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RegistrationCompleteScreen extends StatelessWidget {
   final String name;
@@ -21,106 +25,79 @@ class RegistrationCompleteScreen extends StatelessWidget {
     required this.partnerHeartCode,
   });
 
+  Future<void> _completeRegistration(BuildContext context) async {
+    final registerUserUseCase = GetIt.instance<RegisterUserUseCase>();
+    final prefs = await SharedPreferences.getInstance();
+
+    try {
+      // Salvar usuário no banco
+      await registerUserUseCase.execute(
+        nome: name,
+        email: email,
+        dataNascimento: birth,
+        senha: password,
+        temFoto: profileImagePath != null,
+        heartcode: heartCode,
+      );
+
+      // Atualizar preferências
+      await prefs.setBool('isFirstTime', false);
+      await prefs.setBool('isLoggedIn', true);
+
+      // Navegar para a homepage
+      Navigator.pushReplacementNamed(context, '/homepage');
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao completar registro: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: true,
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('lib/assets/images/home.png'),
-            fit: BoxFit.cover,
-          ),
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.black.withOpacity(0.7),
-                Colors.transparent,
-                const Color(0xFF1E1338),
-                const Color(0xFF08050F),
-              ],
-              stops: const [0.0, 0.2, 0.8, 1.0],
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 79.1),
-                  child: Align(
-                    alignment: Alignment.center,
-                    child: Image.asset(
-                      'lib/assets/images/logo.png',
-                      width: 47.7,
-                    ),
+      body: BackgroundWidget(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'Registro Concluído!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Você e seu parceiro estão sincronizados!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 40),
+              ElevatedButton(
+                onPressed: () => _completeRegistration(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF7D48FE),
+                  minimumSize: const Size(200, 60),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
                   ),
                 ),
-                const SizedBox(height: 40),
-                const Text(
-                  'HeartSync',
-                  textAlign: TextAlign.center,
+                child: const Text(
+                  'Ir para a Homepage',
                   style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
                     color: Colors.white,
-                    fontSize: 42,
-                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 20),
-                Text(
-                  'Você completou o seu registro, ${name.split(' ').first}!',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Agora você pode explorar todas as funções do HeartSync',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-                const Spacer(),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => const HomePage()),
-                    );
-                  },
-
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF7D48FE),
-                    minimumSize: const Size(double.infinity, 66),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
-                  child: const Text(
-                    'Começar',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 40), // Ajustado para melhor espaçamento
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

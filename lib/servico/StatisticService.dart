@@ -19,13 +19,14 @@ class StatisticService {
 
     // Obter tempo de uso real do dispositivo (apenas para o dispositivo atual)
     final tempoUsado1 = await DeviceUsage.getDeviceUsageTimeWithPermission();
-    // Para o segundo usuário, você pode precisar de um backend para sincronizar os dados
-    final tempoUsado2 = await DeviceUsage.getDeviceUsageTimeWithPermission(); // Ajustar conforme necessário
+    // Para o segundo usuário, assumir que os dados virão de um backend remoto (placeholder)
+    // TODO: Implementar sincronização com backend para obter tempoUsado2
+    const tempoUsado2 = 0; // Placeholder: deve ser substituído por chamada ao backend
 
-    // Atualizar o banco com os tempos de uso
+    // Atualizar o banco com os tempos de uso, evitando duplicatas
     const metaUso = 240; // 4 horas em minutos (ajustar conforme necessário)
-    await updateUsoCelular(idUsuario1, dataUso, metaUso, tempoUsado1);
-    await updateUsoCelular(idUsuario2, dataUso, metaUso, tempoUsado2);
+    await _updateUsoCelular(idUsuario1, dataUso, metaUso, tempoUsado1);
+    await _updateUsoCelular(idUsuario2, dataUso, metaUso, tempoUsado2);
 
     final tempoRestante1 = await _dbHelper.getTempoRestante(idUsuario1, dataUso);
     final tempoRestante2 = await _dbHelper.getTempoRestante(idUsuario2, dataUso);
@@ -57,7 +58,7 @@ class StatisticService {
 
     return {
       'userName1': usuario1['nome'] ?? 'Usuário 1',
-      'imageUrl': usuario1['temFoto'] == 1 ? 'URL_DA_FOTO' : null, // Substituir pela URL real
+      'imageUrl': usuario1['temFoto'] == 1 ? usuario1['profileImagePath'] ?? 'URL_DA_FOTO' : null,
       'remainingTime1': formatMinutes(tempoRestante1['tempoRestante']),
       'totalTime1': formatMinutes(tempoRestante1['tempoUsado']),
       'userName2': usuario2['nome'] ?? 'Usuário 2',
@@ -72,13 +73,33 @@ class StatisticService {
     };
   }
 
-  Future<void> updateUsoCelular(int idUsuario, String dataUso, int metaUso, int tempoUsado) async {
-    await _dbHelper.insertUsoCelular(
-      idUsuario: idUsuario,
-      dataUso: dataUso,
-      tempoUsadoEmMinutos: tempoUsado,
-      metaUso: metaUso,
+  Future<void> _updateUsoCelular(int idUsuario, String dataUso, int metaUso, int tempoUsado) async {
+    final db = await _dbHelper.database;
+    final existing = await db.query(
+      'uso_celular',
+      where: 'idUsuario = ? AND dataUso = ?',
+      whereArgs: [idUsuario, dataUso],
+      limit: 1,
     );
+
+    if (existing.isNotEmpty) {
+      await db.update(
+        'uso_celular',
+        {
+          'tempoUsadoEmMinutos': tempoUsado,
+          'metaUso': metaUso,
+        },
+        where: 'idUsuario = ? AND dataUso = ?',
+        whereArgs: [idUsuario, dataUso],
+      );
+    } else {
+      await _dbHelper.insertUsoCelular(
+        idUsuario: idUsuario,
+        dataUso: dataUso,
+        tempoUsadoEmMinutos: tempoUsado,
+        metaUso: metaUso,
+      );
+    }
   }
 
   String formatMinutes(int minutes) {

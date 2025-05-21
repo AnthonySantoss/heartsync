@@ -13,11 +13,10 @@ import 'package:heartsync/src/features/Registro/presentation/view/heart_code_qr_
 import 'package:heartsync/src/features/Registro/presentation/view/heart_code_input_screen.dart';
 import 'package:heartsync/src/features/Registro/presentation/view/registration_complete_screen.dart';
 import 'package:heartsync/src/features/Menu/presentation/view/Home_page_screen.dart';
-import 'package:heartsync/Intro_screen.dart';
 import 'package:heartsync/src/features/login/presentation/view/Profile_screen.dart';
 import 'package:heartsync/src/features/Menu/presentation/view/statistic_screen.dart';
 import 'package:heartsync/src/features/Roleta/presentation/view/Roulette_screen.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/heart_code_exchange_screen.dart';
+import 'package:heartsync/Intro_screen.dart';
 
 class AppRoutes {
   static Map<String, WidgetBuilder> getRoutes(SharedPreferences prefs) {
@@ -114,6 +113,18 @@ class AppRoutes {
           onRegisterComplete: args['onRegisterComplete'] as VoidCallback,
         );
       },
+      '/registration-complete': (context) {
+        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+        return RegistrationCompleteScreen(
+          name: args['name'] as String,
+          birth: args['birth'] as String,
+          email: args['email'] as String,
+          password: args['password'] as String,
+          profileImagePath: args['profileImagePath'] as String?,
+          heartCode: args['heartCode'] as String,
+          partnerHeartCode: args['partnerHeartCode'] as String,
+        );
+      },
       '/homepage': (context) => HomePage(),
       '/profile': (context) {
         final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>? ?? {};
@@ -133,7 +144,7 @@ class AppRoutes {
       '/statistic': (context) {
         final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>? ?? {};
         return StatisticScreen(
-          codigoConexao: args['codigoConexao'] as String? ?? 'default_codigo', // Substitua por um código padrão ou trate erros
+          codigoConexao: args['codigoConexao'] as String? ?? 'default_codigo',
         );
       },
       '/roulette': (context) {
@@ -169,13 +180,13 @@ class AppRoutes {
   static Future<void> _handleRegistration(BuildContext context, SharedPreferences prefs) async {
     await prefs.setBool('isFirstTime', false);
     await prefs.setBool('isLoggedIn', true);
-    print('Registration completed - Navigating to /homepage'); // Debug
+    print('Registration completed - Navigating to /homepage');
     Navigator.pushReplacementNamed(context, '/homepage');
   }
 
   static Future<void> _handleLogin(BuildContext context, SharedPreferences prefs) async {
     await prefs.setBool('isLoggedIn', true);
-    print('Login completed - Navigating to /homepage'); // Debug
+    print('Login completed - Navigating to /homepage');
     Navigator.pushReplacementNamed(context, '/homepage');
   }
 }

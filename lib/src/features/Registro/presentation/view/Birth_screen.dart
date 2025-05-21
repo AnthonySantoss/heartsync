@@ -15,11 +15,11 @@ class DateInputFormatter extends TextInputFormatter {
       newText += text.substring(0, length > 2 ? 2 : length);
     }
     if (length > 2) {
-      newText += ' / ';
+      newText += '.';
       newText += text.substring(2, length > 4 ? 4 : length);
     }
     if (length > 4) {
-      newText += ' / ';
+      newText += '.';
       newText += text.substring(4, length > 8 ? 8 : length);
     }
 
@@ -56,7 +56,7 @@ class BirthScreenState extends State<BirthScreen> {
 
   void _navigateToNextScreen() {
     if (_formKey.currentState!.validate()) {
-      print('Navegando para /credentials com name: ${widget.name}, birth: ${_birthController.text}'); // Debug
+      print('Navegando para /credentials com name: ${widget.name}, birth: ${_birthController.text}');
       Navigator.pushNamed(
         context,
         '/credentials',
@@ -119,7 +119,7 @@ class BirthScreenState extends State<BirthScreen> {
                 child: TextFormField(
                   controller: _birthController,
                   decoration: InputDecoration(
-                    labelText: 'dd / mm / aaaa',
+                    labelText: 'dd.MM.yyyy',
                     labelStyle: const TextStyle(color: Colors.grey),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
                     filled: true,
@@ -148,15 +148,15 @@ class BirthScreenState extends State<BirthScreen> {
                     FilteringTextInputFormatter.digitsOnly,
                     DateInputFormatter(),
                   ],
-                  maxLength: 14,
+                  maxLength: 10,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Por favor, insira sua data de nascimento';
                     }
-                    if (!RegExp(r'^\d{2} / \d{2} / \d{4}$').hasMatch(value)) {
-                      return 'Formato inválido (dd / mm / aaaa)';
+                    if (!RegExp(r'^\d{2}\.\d{2}\.\d{4}$').hasMatch(value)) {
+                      return 'Formato inválido (dd.MM.yyyy)';
                     }
-                    final parts = value.split(' / ');
+                    final parts = value.split('.');
                     final day = int.tryParse(parts[0]) ?? 0;
                     final month = int.tryParse(parts[1]) ?? 0;
                     final year = int.tryParse(parts[2]) ?? 0;
@@ -172,16 +172,9 @@ class BirthScreenState extends State<BirthScreen> {
                     }
                     final birthDate = DateTime(year, month, day);
                     final now = DateTime.now();
-                    final age = now.year - birthDate.year;
-                    if (now.month < birthDate.month ||
-                        (now.month == birthDate.month && now.day < birthDate.day)) {
-                      if (age - 1 < 13) {
-                        return 'Você deve ter pelo menos 13 anos';
-                      }
-                    } else {
-                      if (age < 13) {
-                        return 'Você deve ter pelo menos 13 anos';
-                      }
+                    final age = now.year - birthDate.year - (now.isBefore(DateTime(year, month, day)) ? 1 : 0);
+                    if (age < 13) {
+                      return 'Você deve ter pelo menos 13 anos';
                     }
                     return null;
                   },
@@ -224,7 +217,7 @@ class BirthScreenState extends State<BirthScreen> {
                       ),
                       recognizer: TapGestureRecognizer()
                         ..onTap = () {
-                          print('Navegando para /login'); // Debug
+                          print('Navegando para /login');
                           Navigator.pushNamed(context, '/login');
                         },
                     ),
