@@ -47,8 +47,16 @@ class RegistrationCompleteScreen extends StatelessWidget {
       // Navegar para a homepage
       Navigator.pushReplacementNamed(context, '/homepage');
     } catch (e) {
+      String errorMessage = 'Erro ao completar registro';
+      if (e.toString().contains('Email já registrado')) {
+        errorMessage = 'Este email já está em uso. Tente outro.';
+      } else if (e.toString().contains('HeartCode já está em uso')) {
+        errorMessage = 'Este HeartCode já está em uso. Tente outro.';
+      } else {
+        errorMessage = 'Erro inesperado: $e';
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao completar registro: $e')),
+        SnackBar(content: Text(errorMessage)),
       );
     }
   }

@@ -1,5 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._();
@@ -75,7 +77,13 @@ class DatabaseHelper {
     }
   }
 
-  // Inserir usuário
+  // Função para hash da senha
+  String _hashPassword(String password) {
+    final bytes = utf8.encode(password);
+    return sha256.convert(bytes).toString();
+  }
+
+  // Inserir usuário com transação
   Future<int> insertUsuario({
     required String nome,
     required String email,
@@ -87,16 +95,18 @@ class DatabaseHelper {
     required bool conectado,
   }) async {
     final db = await database;
-    return await db.insert('usuarios', {
-      'nome': nome,
-      'email': email,
-      'dataNascimento': dataNascimento,
-      'senha': senha,
-      'temFoto': temFoto ? 1 : 0,
-      'profileImagePath': profileImagePath,
-      'heartcode': heartcode,
-      'conectado': conectado ? 1 : 0,
-    }, conflictAlgorithm: ConflictAlgorithm.rollback);
+    return await db.transaction((txn) async {
+      return await txn.insert('usuarios', {
+        'nome': nome,
+        'email': email,
+        'dataNascimento': dataNascimento,
+        'senha': _hashPassword(senha), // Aplica hash na senha
+        'temFoto': temFoto ? 1 : 0,
+        'profileImagePath': profileImagePath,
+        'heartcode': heartcode,
+        'conectado': conectado ? 1 : 0,
+      }, conflictAlgorithm: ConflictAlgorithm.rollback);
+    });
   }
 
   // Buscar todos os usuários
