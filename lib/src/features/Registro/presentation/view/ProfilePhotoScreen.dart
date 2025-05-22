@@ -186,7 +186,7 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
 
 Future<String?> uploadImage(File imageFile) async {
   try {
-    var uri = Uri.parse('http://192.168.0.11:3000/upload');
+    var uri = Uri.parse('http://192.168.1.14:3000/upload');
     var request = http.MultipartRequest('POST', uri);
     request.files.add(await http.MultipartFile.fromPath('profile_image', imageFile.path));
 
