@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
@@ -6,7 +7,7 @@ const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Configuração do banco de dados SQLite
 const db = new sqlite3.Database('./heartsync.db', (err) => {
@@ -14,42 +15,61 @@ const db = new sqlite3.Database('./heartsync.db', (err) => {
     console.error('Erro ao conectar ao banco de dados:', err.message);
   } else {
     console.log('Conectado ao banco de dados SQLite');
-    initializeDatabase();
+    db.run('PRAGMA foreign_keys = ON;', (err) => {
+      if (err) {
+        console.error('Erro ao habilitar chaves estrangeiras:', err.message);
+      } else {
+        console.log('Chaves estrangeiras habilitadas');
+      }
+      initializeDatabase();
+    });
   }
 });
 
 function initializeDatabase() {
   db.serialize(() => {
-    // Criar tabela de usuários
-    db.run(`CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nome TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      dataNascimento TEXT NOT NULL,
-      senha TEXT NOT NULL,
-      temFoto BOOLEAN DEFAULT FALSE,
-      profileImagePath TEXT,
-      heartcode TEXT UNIQUE NOT NULL,
-      conectado BOOLEAN DEFAULT FALSE,
-      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`);
+    // Tabela de usuários corrigida
+    db.run(
+      `CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        dataNascimento TEXT NOT NULL,
+        senha TEXT NOT NULL,
+        temFoto BOOLEAN DEFAULT FALSE,
+        profileImagePath TEXT,
+        heartcode TEXT UNIQUE NOT NULL,
+        conectado BOOLEAN DEFAULT FALSE,
+        createdAt TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now'))
+      )`, // Fechando o parêntese que estava faltando
+      (err) => {
+        if (err) console.error('Erro ao criar tabela users:', err.message);
+        else console.log('Tabela users criada ou já existe');
+      }
+    );
 
-    // Criar tabela de casais
-    db.run(`CREATE TABLE IF NOT EXISTS couples (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      idUsuario1 INTEGER NOT NULL,
-      idUsuario2 INTEGER NOT NULL,
-      codigoConexao TEXT UNIQUE NOT NULL,
-      FOREIGN KEY (idUsuario1) REFERENCES users (id),
-      FOREIGN KEY (idUsuario2) REFERENCES users (id),
-      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`);
+    // Tabela de casais corrigida
+    db.run(
+      `CREATE TABLE IF NOT EXISTS couples (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        idUsuario1 INTEGER NOT NULL,
+        idUsuario2 INTEGER NOT NULL,
+        codigoConexao TEXT UNIQUE NOT NULL,
+        createdAt TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+        FOREIGN KEY (idUsuario1) REFERENCES users (id) ON DELETE CASCADE,
+        FOREIGN KEY (idUsuario2) REFERENCES users (id) ON DELETE CASCADE
+      )`, // Fechando o parêntese que estava faltando
+      (err) => {
+        if (err) console.error('Erro ao criar tabela couples:', err.message);
+        else console.log('Tabela couples criada ou já existe');
+      }
+    );
   });
 }
 
 // Configurações do Express
 app.use(cors({
-  origin: ['http://localhost', 'http://10.0.2.2'], // Permitir Flutter e localhost
+  origin: ['http://localhost', 'http://10.0.2.2', 'http://localhost:8081'], // Adicionado localhost:8081 para Flutter
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -74,6 +94,8 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // Rotas
+
+// Upload de imagem de perfil
 app.post('/upload', upload.single('profile_image'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
@@ -82,11 +104,14 @@ app.post('/upload', upload.single('profile_image'), (req, res) => {
   res.status(200).json({ imageUrl });
 });
 
+// Criação de usuário
 app.post('/users', async (req, res) => {
   const { nome, email, dataNascimento, senha, temFoto, profileImagePath } = req.body;
 
-  // Gerar heartcode único
+  console.log('Recebendo dados para criar usuário:', req.body);
+
   const heartcode = generateHeartCode();
+  console.log('Heartcode gerado:', heartcode);
 
   try {
     const result = await new Promise((resolve, reject) => {
@@ -101,13 +126,15 @@ app.post('/users', async (req, res) => {
       );
     });
 
-    res.status(201).json({
+    const response = {
       id: result,
       nome,
       email,
       heartcode,
       profileImagePath
-    });
+    };
+    console.log('Resposta enviada:', response);
+    res.status(201).json(response);
   } catch (err) {
     if (err.message.includes('UNIQUE constraint failed: users.email')) {
       return res.status(400).json({ error: 'Email já registrado' });
@@ -117,11 +144,13 @@ app.post('/users', async (req, res) => {
   }
 });
 
+// Validação de heartcode e criação de conexão
 app.post('/validate-heartcode', async (req, res) => {
   const { userHeartCode, partnerHeartCode } = req.body;
 
+  console.log('Recebendo dados para validar heartcode:', req.body);
+
   try {
-    // Verificar se os heartcodes existem
     const [user, partner] = await Promise.all([
       getUserByHeartCode(userHeartCode),
       getUserByHeartCode(partnerHeartCode)
@@ -135,10 +164,9 @@ app.post('/validate-heartcode', async (req, res) => {
       return res.status(400).json({ error: 'Um dos usuários já está conectado' });
     }
 
-    // Gerar código de conexão
     const codigoConexao = `CONN${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+    console.log('Código de conexão gerado:', codigoConexao);
 
-    // Criar conexão
     await new Promise((resolve, reject) => {
       db.run(
         `INSERT INTO couples (idUsuario1, idUsuario2, codigoConexao) VALUES (?, ?, ?)`,
@@ -147,7 +175,6 @@ app.post('/validate-heartcode', async (req, res) => {
       );
     });
 
-    // Atualizar status de conexão
     await Promise.all([
       updateUserConnectionStatus(user.id, true),
       updateUserConnectionStatus(partner.id, true)
@@ -203,6 +230,6 @@ app.use((err, req, res, next) => {
 });
 
 // Iniciar servidor
-app.listen(PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Servidor rodando em http://0.0.0.0:${PORT}`);
 });

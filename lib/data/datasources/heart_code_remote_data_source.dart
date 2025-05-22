@@ -21,7 +21,7 @@ abstract class HeartCodeRemoteDataSource {
 }
 
 class HeartCodeRemoteDataSourceImpl implements HeartCodeRemoteDataSource {
-  final String baseUrl = 'http://your-backend-url:3000'; // Substitua pelo URL do seu backend
+  final String baseUrl = 'http://localhost:8081'; // Substitua pelo URL do seu backend
 
   @override
   Future<User> generateHeartCode({
