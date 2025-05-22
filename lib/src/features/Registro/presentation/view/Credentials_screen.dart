@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
 import 'package:heartsync/src/features/Registro/presentation/view/verification_code_screen.dart';
+import 'package:heartsync/servico//api_service.dart';
 
 class CredentialsScreen extends StatefulWidget {
   final String name;
@@ -24,6 +25,8 @@ class CredentialsScreenState extends State<CredentialsScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final ApiService _apiService = ApiService(baseUrl: 'http://192.168.1.14:3000'); // Ajuste o IP
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -33,24 +36,41 @@ class CredentialsScreenState extends State<CredentialsScreen> {
     super.dispose();
   }
 
-  void _submitForm() {
+  Future<void> _submitForm() async {
     if (_formKey.currentState!.validate()) {
-      // Gerar um código de verificação simulado
-      String verificationCode = '101010'; // Fixado para teste
-      print('Código de verificação simulado para ${_emailController.text}: $verificationCode');
+      setState(() {
+        _isLoading = true;
+      });
 
-      Navigator.pushNamed(
-        context,
-        '/verification',
-        arguments: {
-          'email': _emailController.text,
-          'name': widget.name,
-          'birth': widget.birth,
-          'password': _passwordController.text,
-          'verificationCode': verificationCode,
-          'onRegisterComplete': widget.onRegisterComplete,
-        },
-      );
+      try {
+        final response = await _apiService.sendVerificationCode(_emailController.text);
+        final verificationCode = response['verificationCode'] as String;
+
+        print('Código de verificação recebido para ${_emailController.text}: $verificationCode');
+
+        Navigator.pushNamed(
+          context,
+          '/verification',
+          arguments: {
+            'email': _emailController.text,
+            'name': widget.name,
+            'birth': widget.birth,
+            'password': _passwordController.text,
+            'verificationCode': verificationCode,
+            'onRegisterComplete': widget.onRegisterComplete,
+          },
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao enviar código: $e')),
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
@@ -179,7 +199,11 @@ class CredentialsScreenState extends State<CredentialsScreen> {
                 ),
               ),
               const SizedBox(height: 105),
-              ElevatedButton(
+              _isLoading
+                  ? const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              )
+                  : ElevatedButton(
                 onPressed: _submitForm,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF7D48FE),

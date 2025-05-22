@@ -5,6 +5,7 @@ const cors = require('cors');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
+const nodemailer = require('nodemailer'); // Adicionado
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,7 +29,6 @@ const db = new sqlite3.Database('./heartsync.db', (err) => {
 
 function initializeDatabase() {
   db.serialize(() => {
-    // Tabela de usuários corrigida
     db.run(
       `CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,14 +41,13 @@ function initializeDatabase() {
         heartcode TEXT UNIQUE NOT NULL,
         conectado BOOLEAN DEFAULT FALSE,
         createdAt TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now'))
-      )`, // Fechando o parêntese que estava faltando
+      )`,
       (err) => {
         if (err) console.error('Erro ao criar tabela users:', err.message);
         else console.log('Tabela users criada ou já existe');
       }
     );
 
-    // Tabela de casais corrigida
     db.run(
       `CREATE TABLE IF NOT EXISTS couples (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,7 +57,7 @@ function initializeDatabase() {
         createdAt TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
         FOREIGN KEY (idUsuario1) REFERENCES users (id) ON DELETE CASCADE,
         FOREIGN KEY (idUsuario2) REFERENCES users (id) ON DELETE CASCADE
-      )`, // Fechando o parêntese que estava faltando
+      )`,
       (err) => {
         if (err) console.error('Erro ao criar tabela couples:', err.message);
         else console.log('Tabela couples criada ou já existe');
@@ -67,9 +66,18 @@ function initializeDatabase() {
   });
 }
 
+// Configuração do transporte de e-mail (usando variáveis de ambiente)
+const transporter = nodemailer.createTransport({
+  service: process.env.EMAIL_SERVICE || 'gmail', // Ex.: 'gmail'
+  auth: {
+    user: process.env.EMAIL_USER, // Ex.: 'seu-email@gmail.com' (via .env)
+    pass: process.env.EMAIL_PASS, // Senha de aplicativo (via .env)
+  },
+});
+
 // Configurações do Express
 app.use(cors({
-  origin: ['http://localhost', 'http://10.0.2.2', 'http://localhost:8081'], // Adicionado localhost:8081 para Flutter
+  origin: ['http://localhost', 'http://10.0.2.2', 'http://localhost:8081'],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -94,8 +102,6 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // Rotas
-
-// Upload de imagem de perfil
 app.post('/upload', upload.single('profile_image'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
@@ -104,7 +110,6 @@ app.post('/upload', upload.single('profile_image'), (req, res) => {
   res.status(200).json({ imageUrl });
 });
 
-// Criação de usuário
 app.post('/users', async (req, res) => {
   const { nome, email, dataNascimento, senha, temFoto, profileImagePath } = req.body;
 
@@ -144,7 +149,34 @@ app.post('/users', async (req, res) => {
   }
 });
 
-// Validação de heartcode e criação de conexão
+app.post('/send-verification-code', async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email é obrigatório' });
+  }
+
+  // Gerar código de verificação de 6 dígitos
+  const verificationCode = Math.floor(100000 + Math.random() * 900000).toString().substring(0, 6);
+
+  // Configurar e enviar e-mail
+  const mailOptions = {
+    from: process.env.EMAIL_USER, // Usando variável de ambiente
+    to: email,
+    subject: 'Código de Verificação - HeartSync',
+    text: `Seu código de verificação é: ${verificationCode}. Digite-o no aplicativo para continuar o registro. Validade: 10 minutos.`,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`Código ${verificationCode} enviado para ${email} às ${new Date().toLocaleString()}`);
+    res.status(200).json({ verificationCode }); // Retorna o código ao Flutter
+  } catch (err) {
+    console.error('Erro ao enviar e-mail:', err);
+    res.status(500).json({ error: 'Erro ao enviar código de verificação' });
+  }
+});
+
 app.post('/validate-heartcode', async (req, res) => {
   const { userHeartCode, partnerHeartCode } = req.body;
 
