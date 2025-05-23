@@ -32,7 +32,7 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
   File? _selectedImageFile;
   String? imageUrl;
   final ImagePicker _picker = ImagePicker();
-  final ApiService _apiService = ApiService(baseUrl: 'http://192.168.0.8:3000');
+  final ApiService _apiService = ApiService(baseUrl: 'http://10.0.2.2:3000'); // Base URL para emulador
   final DatabaseHelper _databaseHelper = GetIt.instance<DatabaseHelper>();
 
   void _pickImage() async {
@@ -53,7 +53,6 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
       String? profileImagePath;
       bool temFoto = false;
 
-      // Obter o localId do AuthManager
       final localId = await AuthManager.getLocalId();
       if (localId == null) {
         throw Exception('ID do usuário não encontrado. Por favor, faça login novamente.');
@@ -61,38 +60,37 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
 
       if (_selectedImageFile != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Enviando imagem...')),
+          const SnackBar(content: Text('Usando caminho local da imagem...')),
         );
-
-        // Faz o upload da imagem usando ApiService
-        final responseData = await _apiService.uploadImage(_selectedImageFile!);
-        setState(() {
-          imageUrl = responseData['imageUrl'];
-          profileImagePath = imageUrl;
-          temFoto = true;
-        });
-
-        // Atualizar o AuthManager com a URL da foto
-        await AuthManager.updateUserProfile(photoUrl: profileImagePath);
+        profileImagePath = _selectedImageFile!.path; // Usa o caminho local
+        temFoto = true;
+      } else {
+        profileImagePath = ''; // Ou uma string vazia se não houver imagem
       }
 
-      // Atualizar o banco de dados com os dados da foto
+      setState(() {
+        imageUrl = profileImagePath;
+        temFoto = true;
+      });
+
+      await AuthManager.updateUserProfile(photoUrl: profileImagePath);
       final db = await _databaseHelper.database;
       await db.update(
         'usuarios',
         {
           'temFoto': temFoto ? 1 : 0,
-          'profileImagePath': profileImagePath,
+          'profileImagePath': profileImagePath ?? '',
         },
         where: 'id = ?',
         whereArgs: [localId],
       );
+      print('Banco de dados atualizado, profileImagePath: $profileImagePath');
 
-      // Chama o callback de registro concluído
+      Navigator.pushReplacementNamed(context, '/homepage');
       widget.onRegisterComplete();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao enviar imagem: $e')),
+        SnackBar(content: Text('Erro ao processar registro: $e')),
       );
     }
   }

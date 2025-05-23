@@ -8,7 +8,7 @@ import 'package:heartsync/data/models/user_model.dart';
 class ApiService {
   final String _baseUrl;
 
-  ApiService({String? baseUrl}) : _baseUrl = baseUrl ?? "http://192.168.0.8:3000";
+  ApiService({String? baseUrl}) : _baseUrl = baseUrl ?? "http://192.168.1.14:3000";
 
   String getBaseUrl() => _baseUrl;
 

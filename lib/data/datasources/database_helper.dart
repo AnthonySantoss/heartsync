@@ -22,7 +22,7 @@ class DatabaseHelper {
     final path = join(databasePath, 'heartsync.db');
     return await openDatabase(
       path,
-      version: 2, // Incrementar a versão de 1 para 2
+      version: 2, // Versão atual do banco de dados
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE IF NOT EXISTS usuarios (
@@ -69,8 +69,9 @@ class DatabaseHelper {
         ''');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
+        print('Migrating database from version $oldVersion to $newVersion');
         if (oldVersion < 2) {
-          // Criar uma nova tabela sem a coluna heartcode
+          // Criar uma nova tabela com o esquema atualizado
           await db.execute('''
             CREATE TABLE usuarios_new (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,14 +85,17 @@ class DatabaseHelper {
               syncDate TEXT
             )
           ''');
-          // Copiar os dados da tabela antiga para a nova, ignorando heartcode
+
+          // Copiar os dados da tabela antiga para a nova, fornecendo NULL para colunas ausentes
           await db.execute('''
             INSERT INTO usuarios_new (id, nome, email, dataNascimento, senha, temFoto, profileImagePath, anniversaryDate, syncDate)
-            SELECT id, nome, email, dataNascimento, senha, temFoto, profileImagePath, anniversaryDate, syncDate
+            SELECT id, nome, email, dataNascimento, senha, temFoto, profileImagePath, NULL, NULL
             FROM usuarios
           ''');
+
           // Deletar a tabela antiga
           await db.execute('DROP TABLE usuarios');
+
           // Renomear a nova tabela
           await db.execute('ALTER TABLE usuarios_new RENAME TO usuarios');
         }

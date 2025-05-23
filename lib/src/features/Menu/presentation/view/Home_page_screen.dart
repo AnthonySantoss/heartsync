@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:heartsync/src/utils/auth_manager.dart';
@@ -236,9 +237,9 @@ class _HomePageState extends State<HomePage> {
               },
               child: CircleAvatar(
                 backgroundColor: Colors.white,
-                backgroundImage: user!.photoUrl != null
-                    ? NetworkImage(user!.photoUrl!)
-                    : null,
+                backgroundImage: user!.photoUrl != null && user!.photoUrl!.isNotEmpty
+                    ? FileImage(File(user!.photoUrl!))
+                    : NetworkImage('https://via.placeholder.com/150'),
                 child: user!.photoUrl == null
                     ? const Icon(Icons.person, color: Colors.black)
                     : null,
