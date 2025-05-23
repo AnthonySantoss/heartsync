@@ -1,84 +1,70 @@
 import 'package:heartsync/data/datasources/database_helper.dart';
 import 'package:heartsync/servico/device_usage.dart';
+import 'package:heartsync/domain/repositories/usage_repository.dart';
+import 'package:get_it/get_it.dart';
 
 class StatisticService {
-  final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  final DatabaseHelper _dbHelper;
+  final UsageRepository _usageRepository;
 
-  Future<Map<String, dynamic>> getStatisticData(String codigoConexao, String dataUso) async {
-    final casal = await _dbHelper.getCasalPorCodigo(codigoConexao);
-    if (casal == null) {
-      throw Exception('Casal não encontrado');
+  StatisticService(this._dbHelper) : _usageRepository = GetIt.instance<UsageRepository>();
+
+  Future<Map<String, dynamic>> getStatisticData(int userId, String dataUso) async {
+    try {
+      // Obter dados do usuário do banco local
+      final usuario = (await _dbHelper.getUsuarios())
+          .firstWhere((u) => u['id'] == userId, orElse: () => throw Exception('Usuário não encontrado'));
+
+      // Obter tempo de uso real do dispositivo via UsageRepository
+      final tempoUsado = (await _usageRepository.getTodayUsage(userId)) * 60; // Converter horas para minutos
+
+      // Obter limite de uso do back-end
+      final metaUso = (await _usageRepository.getUsageLimit(userId)) * 60; // Converter horas para minutos
+
+      // Atualizar o banco com o tempo de uso, evitando duplicatas
+      await _updateUsoCelular(userId, dataUso, metaUso.toInt(), tempoUsado.toInt());
+
+      // Obter tempo restante do banco local
+      final tempoRestante = await _dbHelper.getTempoRestante(userId, dataUso);
+
+      // Obter uso semanal do banco local
+      final usoSemanal = await _dbHelper.getUsoCelularUltimaSemana(userId);
+      final mediaSemanal = await _dbHelper.getMediaSemanal(userId);
+
+      // Preparar dados semanais (7 dias)
+      final usageData = List<double>.generate(7, (index) {
+        final data = DateTime.now().subtract(Duration(days: 6 - index)).toIso8601String().split('T')[0];
+        return usoSemanal.firstWhere(
+              (u) => u['dataUso'] == data,
+          orElse: () => {'tempoUsadoEmMinutos': 0},
+        )['tempoUsadoEmMinutos'].toDouble() / 60;
+      });
+
+      final diasUsados = usoSemanal.length;
+
+      return {
+        'userName': usuario['nome'] ?? 'Usuário',
+        'imageUrl': usuario['temFoto'] == 1 ? usuario['profileImagePath'] ?? 'URL_DA_FOTO' : null,
+        'remainingTime': formatMinutes(tempoRestante['tempoRestante']),
+        'totalTime': formatMinutes(tempoRestante['tempoUsado']),
+        'usageData': usageData,
+        'dailyTimeLimit': formatMinutes(tempoRestante['metaUso']),
+        'timeLimitRange': '00:00 – 24:00', // Ajustar conforme necessário
+        'weeklyAverage': '${mediaSemanal.toStringAsFixed(0)} min',
+        'dayUsed': diasUsados.toString(),
+      };
+    } catch (e) {
+      print('Erro ao obter dados estatísticos: $e');
+      throw Exception('Falha ao carregar dados estatísticos: $e');
     }
-
-    final idUsuario1 = casal['idUsuario1'] as int;
-    final idUsuario2 = casal['idUsuario2'] as int;
-
-    final usuarios = await _dbHelper.getUsuarios();
-    final usuario1 = usuarios.firstWhere((u) => u['id'] == idUsuario1, orElse: () => {});
-    final usuario2 = usuarios.firstWhere((u) => u['id'] == idUsuario2, orElse: () => {});
-
-    // Obter tempo de uso real do dispositivo (apenas para o dispositivo atual)
-    final tempoUsado1 = await DeviceUsage.getDeviceUsageTimeWithPermission();
-    // Para o segundo usuário, assumir que os dados virão de um backend remoto (placeholder)
-    // TODO: Implementar sincronização com backend para obter tempoUsado2
-    const tempoUsado2 = 0; // Placeholder: deve ser substituído por chamada ao backend
-
-    // Atualizar o banco com os tempos de uso, evitando duplicatas
-    const metaUso = 240; // 4 horas em minutos (ajustar conforme necessário)
-    await _updateUsoCelular(idUsuario1, dataUso, metaUso, tempoUsado1);
-    await _updateUsoCelular(idUsuario2, dataUso, metaUso, tempoUsado2);
-
-    final tempoRestante1 = await _dbHelper.getTempoRestante(idUsuario1, dataUso);
-    final tempoRestante2 = await _dbHelper.getTempoRestante(idUsuario2, dataUso);
-
-    final usoSemanal1 = await _dbHelper.getUsoCelularUltimaSemana(idUsuario1);
-    final usoSemanal2 = await _dbHelper.getUsoCelularUltimaSemana(idUsuario2);
-
-    final mediaSemanal1 = await _dbHelper.getMediaSemanal(idUsuario1);
-    final mediaSemanal2 = await _dbHelper.getMediaSemanal(idUsuario2);
-    final mediaSemanal = ((mediaSemanal1 + mediaSemanal2) / 2).toStringAsFixed(0);
-
-    final List<double> usageData1 = List.generate(7, (index) {
-      final data = DateTime.now().subtract(Duration(days: 6 - index)).toIso8601String().split('T')[0];
-      return usoSemanal1.firstWhere(
-            (u) => u['dataUso'] == data,
-        orElse: () => {'tempoUsadoEmMinutos': 0},
-      )['tempoUsadoEmMinutos'].toDouble() / 60;
-    });
-
-    final List<double> usageData2 = List.generate(7, (index) {
-      final data = DateTime.now().subtract(Duration(days: 6 - index)).toIso8601String().split('T')[0];
-      return usoSemanal2.firstWhere(
-            (u) => u['dataUso'] == data,
-        orElse: () => {'tempoUsadoEmMinutos': 0},
-      )['tempoUsadoEmMinutos'].toDouble() / 60;
-    });
-
-    final diasUsados = usoSemanal1.length;
-
-    return {
-      'userName1': usuario1['nome'] ?? 'Usuário 1',
-      'imageUrl': usuario1['temFoto'] == 1 ? usuario1['profileImagePath'] ?? 'URL_DA_FOTO' : null,
-      'remainingTime1': formatMinutes(tempoRestante1['tempoRestante']),
-      'totalTime1': formatMinutes(tempoRestante1['tempoUsado']),
-      'userName2': usuario2['nome'] ?? 'Usuário 2',
-      'remainingTime2': formatMinutes(tempoRestante2['tempoRestante']),
-      'totalTime2': formatMinutes(tempoRestante2['tempoUsado']),
-      'usageData1': usageData1,
-      'usageData2': usageData2,
-      'dailyTimeLimit': formatMinutes(tempoRestante1['metaUso']),
-      'timeLimitRange': '00:00 – 24:00', // Ajustar conforme necessário
-      'weeklyAverage': '$mediaSemanal min',
-      'dayUsed': diasUsados.toString(),
-    };
   }
 
-  Future<void> _updateUsoCelular(int idUsuario, String dataUso, int metaUso, int tempoUsado) async {
+  Future<void> _updateUsoCelular(int userId, String dataUso, int metaUso, int tempoUsado) async {
     final db = await _dbHelper.database;
     final existing = await db.query(
       'uso_celular',
       where: 'idUsuario = ? AND dataUso = ?',
-      whereArgs: [idUsuario, dataUso],
+      whereArgs: [userId, dataUso],
       limit: 1,
     );
 
@@ -90,11 +76,11 @@ class StatisticService {
           'metaUso': metaUso,
         },
         where: 'idUsuario = ? AND dataUso = ?',
-        whereArgs: [idUsuario, dataUso],
+        whereArgs: [userId, dataUso],
       );
     } else {
       await _dbHelper.insertUsoCelular(
-        idUsuario: idUsuario,
+        idUsuario: userId,
         dataUso: dataUso,
         tempoUsadoEmMinutos: tempoUsado,
         metaUso: metaUso,

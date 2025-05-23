@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:heartsync/src/config/routes.dart';
 import 'di/injection.dart' as di;
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 

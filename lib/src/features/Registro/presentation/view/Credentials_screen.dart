@@ -2,7 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
 import 'package:heartsync/src/features/Registro/presentation/view/verification_code_screen.dart';
-import 'package:heartsync/servico//api_service.dart';
+import 'package:heartsync/servico/api_service.dart';
 
 class CredentialsScreen extends StatefulWidget {
   final String name;
@@ -25,7 +25,7 @@ class CredentialsScreenState extends State<CredentialsScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final ApiService _apiService = ApiService(baseUrl: 'http://192.168.1.14:3000'); // Ajuste o IP
+  final ApiService _apiService = ApiService(baseUrl: 'http://192.168.0.8:3000');
   bool _isLoading = false;
 
   @override
@@ -50,7 +50,7 @@ class CredentialsScreenState extends State<CredentialsScreen> {
 
         Navigator.pushNamed(
           context,
-          '/verification',
+          '/verification_code', // Corrigido para corresponder ao nome da rota em AppRoutes
           arguments: {
             'email': _emailController.text,
             'name': widget.name,

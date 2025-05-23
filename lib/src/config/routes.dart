@@ -1,192 +1,201 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:heartsync/src/utils/auth_manager.dart';
+
+// Telas de Fluxo Principal
+import 'package:heartsync/Intro_screen.dart';
 import 'package:heartsync/src/features/home/presentation/view/Home_screen.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/Registration_screen.dart';
 import 'package:heartsync/src/features/login/presentation/view/Login_screen.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/Birth_screen.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/Credentials_screen.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/verification_code_screen.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/ProfilePhotoScreen.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/heart_code_screen.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/heart_code_exchange_screen.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/heart_code_qr_screen.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/heart_code_input_screen.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/registration_complete_screen.dart';
 import 'package:heartsync/src/features/Menu/presentation/view/Home_page_screen.dart';
 import 'package:heartsync/src/features/login/presentation/view/Profile_screen.dart';
 import 'package:heartsync/src/features/Menu/presentation/view/statistic_screen.dart';
 import 'package:heartsync/src/features/Roleta/presentation/view/Roulette_screen.dart';
-import 'package:heartsync/Intro_screen.dart';
+
+// Telas de Fluxo de Registro
+import 'package:heartsync/src/features/Registro/presentation/view/Registration_screen.dart';
+import 'package:heartsync/src/features/Registro/presentation/view/Birth_screen.dart';
+import 'package:heartsync/src/features/Registro/presentation/view/Credentials_screen.dart';
+import 'package:heartsync/src/features/Registro/presentation/view/verification_code_screen.dart';
+import 'package:heartsync/src/features/Registro/presentation/view/ProfilePhotoScreen.dart';
+import 'package:heartsync/src/features/Registro/presentation/view/registration_complete_screen.dart';
 
 class AppRoutes {
+  // Nomes de Rotas (Constantes)
+  static const String initialRouteSelector = '/';
+  static const String intro = '/intro';
+  static const String home = '/home';
+  static const String register = '/register';
+  static const String birth = '/birth';
+  static const String credentials = '/credentials';
+  static const String verificationCode = '/verification_code';
+  static const String profilePhoto = '/profile-photo';
+  static const String registrationComplete = '/registration-complete';
+  static const String login = '/login';
+  static const String homePage = '/homepage';
+  static const String profile = '/profile';
+  static const String statistics = '/statistics';
+  static const String roulette = '/roulette';
+
   static Map<String, WidgetBuilder> getRoutes(SharedPreferences prefs) {
     return {
-      '/home': (context) => HomeScreen(
+      initialRouteSelector: (context) {
+        bool? isFirstTime = prefs.getBool('isFirstTime');
+        bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+
+        if (isLoggedIn) {
+          return const HomePage();
+        } else {
+          if (isFirstTime == null || isFirstTime == true) {
+            return const Introducao();
+          } else {
+            return HomeScreen(
+              onLoginComplete: () => _handleLogin(context, prefs),
+              onRegisterComplete: () => Navigator.pushNamed(context, AppRoutes.register),
+            );
+          }
+        }
+      },
+      intro: (context) => const Introducao(),
+      home: (context) => HomeScreen(
         onLoginComplete: () => _handleLogin(context, prefs),
-        onRegisterComplete: () => _handleRegistration(context, prefs),
+        onRegisterComplete: () => Navigator.pushNamed(context, AppRoutes.register),
       ),
-      '/register': (context) => RegistrationScreen(
-        onRegisterComplete: () => _handleRegistration(context, prefs),
-      ),
-      '/login': (context) => LoginScreen(
+      login: (context) => LoginScreen(
         onLoginComplete: () => _handleLogin(context, prefs),
       ),
-      '/intro': (context) => Introducao(),
-      '/birth': (context) {
-        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-        return BirthScreen(
-          name: args['name'] as String,
-          onRegisterComplete: args['onRegisterComplete'] as VoidCallback,
-        );
+      register: (context) => RegistrationScreen(
+        onRegisterComplete: () => Navigator.pushNamed(context, AppRoutes.birth),
+      ),
+      birth: (context) {
+        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+        if (args != null) {
+          return BirthScreen(
+            name: args['name'] as String? ?? '',
+            onRegisterComplete: () {
+              Navigator.pushNamed(context, AppRoutes.credentials, arguments: {
+                'name': args['name'],
+                'onRegisterComplete': () {
+                  Navigator.pushNamed(context, AppRoutes.verificationCode);
+                },
+              });
+            },
+          );
+        }
+        return _ErrorRouteWidget(routeName: birth, args: args);
       },
-      '/credentials': (context) {
-        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-        return CredentialsScreen(
-          name: args['name'] as String,
-          birth: args['birth'] as String,
-          onRegisterComplete: args['onRegisterComplete'] as VoidCallback,
-        );
+      credentials: (context) {
+        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+        if (args != null) {
+          return CredentialsScreen(
+            name: args['name'] as String? ?? '',
+            birth: args['birth'] as String? ?? '',
+            onRegisterComplete: args['onRegisterComplete'] as VoidCallback? ??
+                    () => Navigator.pushNamed(context, AppRoutes.verificationCode),
+          );
+        }
+        return _ErrorRouteWidget(routeName: credentials, args: args);
       },
-      '/verification': (context) {
-        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-        return VerificationCodeScreen(
-          email: args['email'] as String,
-          name: args['name'] as String,
-          birth: args['birth'] as String,
-          password: args['password'] as String,
-          verificationCode: args['verificationCode'] as String,
-          onRegisterComplete: args['onRegisterComplete'] as VoidCallback,
-        );
+      verificationCode: (context) {
+        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+        if (args != null) {
+          return VerificationCodeScreen(
+            email: args['email'] as String? ?? '',
+            name: args['name'] as String? ?? '',
+            birth: args['birth'] as String? ?? '',
+            password: args['password'] as String? ?? '',
+            verificationCode: args['verificationCode'] as String? ?? '',
+            onRegisterComplete: () {
+              Navigator.pushNamed(context, AppRoutes.profilePhoto, arguments: {
+                'name': args['name'],
+                'birth': args['birth'],
+                'email': args['email'],
+                'password': args['password'],
+                'onRegisterComplete': () {
+                  Navigator.pushNamed(context, AppRoutes.registrationComplete, arguments: {
+                    'name': args['name'],
+                    'birth': args['birth'],
+                    'email': args['email'],
+                    'password': args['password'],
+                    'profileImagePath': '',
+                  });
+                },
+              });
+            },
+          );
+        }
+        return _ErrorRouteWidget(routeName: verificationCode, args: args);
       },
-      '/profile-photo': (context) {
-        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-        return ProfilePhotoScreen(
-          name: args['name'] as String,
-          birth: args['birth'] as String,
-          email: args['email'] as String,
-          password: args['password'] as String,
-          onRegisterComplete: args['onRegisterComplete'] as VoidCallback,
-        );
+      profilePhoto: (context) {
+        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+        if (args != null) {
+          return ProfilePhotoScreen(
+            name: args['name'] as String? ?? '',
+            birth: args['birth'] as String? ?? '',
+            email: args['email'] as String? ?? '',
+            password: args['password'] as String? ?? '',
+            onRegisterComplete: args['onRegisterComplete'] as VoidCallback? ??
+                    () => Navigator.pushNamed(context, AppRoutes.registrationComplete, arguments: {
+                  'name': args['name'],
+                  'birth': args['birth'],
+                  'email': args['email'],
+                  'password': args['password'],
+                  'profileImagePath': '',
+                }),
+          );
+        }
+        return _ErrorRouteWidget(routeName: profilePhoto, args: args);
       },
-      '/heart-code': (context) {
-        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-        return HeartCodeScreen(
-          name: args['name'] as String,
-          birth: args['birth'] as String,
-          email: args['email'] as String,
-          password: args['password'] as String,
-          profileImagePath: args['profileImagePath'] as String?,
-          onRegisterComplete: args['onRegisterComplete'] as VoidCallback,
-        );
+      registrationComplete: (context) {
+        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+        if (args != null) {
+          return RegistrationCompleteScreen(
+            name: args['name'] as String? ?? '',
+            birth: args['birth'] as String? ?? '',
+            email: args['email'] as String? ?? '',
+            password: args['password'] as String? ?? '',
+            profileImagePath: args['profileImagePath'] as String? ?? '',
+          );
+        }
+        return _ErrorRouteWidget(routeName: registrationComplete, args: args);
       },
-      '/heart-code-exchange': (context) {
-        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-        return HeartCodeExchangeScreen(
-          name: args['name'] as String,
-          birth: args['birth'] as String,
-          email: args['email'] as String,
-          password: args['password'] as String,
-          profileImagePath: args['profileImagePath'] as String?,
-          onRegisterComplete: args['onRegisterComplete'] as VoidCallback,
-        );
-      },
-      '/heart-code-qr': (context) {
-        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-        return HeartCodeQRScreen(
-          name: args['name'] as String,
-          birth: args['birth'] as String,
-          email: args['email'] as String,
-          password: args['password'] as String,
-          profileImagePath: args['profileImagePath'] as String?,
-          onRegisterComplete: args['onRegisterComplete'] as VoidCallback,
-        );
-      },
-      '/heart-code-input': (context) {
-        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-        return HeartCodeInputScreen(
-          name: args['name'] as String,
-          birth: args['birth'] as String,
-          email: args['email'] as String,
-          password: args['password'] as String,
-          profileImagePath: args['profileImagePath'] as String?,
-          heartCode: args['heartCode'] as String,
-          onRegisterComplete: args['onRegisterComplete'] as VoidCallback,
-        );
-      },
-      '/registration-complete': (context) {
-        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-        return RegistrationCompleteScreen(
-          name: args['name'] as String,
-          birth: args['birth'] as String,
-          email: args['email'] as String,
-          password: args['password'] as String,
-          profileImagePath: args['profileImagePath'] as String?,
-          heartCode: args['heartCode'] as String,
-          partnerHeartCode: args['partnerHeartCode'] as String,
-        );
-      },
-      '/homepage': (context) => HomePage(),
-      '/profile': (context) {
-        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>? ?? {};
-        return ProfileScreen(
-          userName1: args['userName1'] as String? ?? 'Isabela',
-          heartCode1: args['heartCode1'] as String? ?? '#543823332PA',
-          birthDate1: args['birthDate1'] as String? ?? '12.03.2004',
-          userName2: args['userName2'] as String? ?? 'Ricardo',
-          heartCode2: args['heartCode2'] as String? ?? '#123456789AB',
-          birthDate2: args['birthDate2'] as String? ?? '07.08.2003',
-          anniversaryDate: args['anniversaryDate'] as String? ?? '15.05.2019',
-          syncDate: args['syncDate'] as String? ?? '01.02.2025',
-          imageUrl1: args['imageUrl1'] as String?,
-          imageUrl2: args['imageUrl2'] as String?,
-        );
-      },
-      '/statistic': (context) {
-        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>? ?? {};
-        return StatisticScreen(
-          codigoConexao: args['codigoConexao'] as String? ?? 'default_codigo',
-        );
-      },
-      '/roulette': (context) {
-        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>? ?? {};
-        return RouletteScreen(
-          initialActivities: (args['initialActivities'] as List<dynamic>?)?.map((e) => Activity(
-            name: e['name'] as String,
-            blockTime: e['blockTime'] as String,
-          )).toList() ?? const [
-            Activity(name: 'Filme', blockTime: '1 hora'),
-            Activity(name: 'Jogar...', blockTime: '1h30min'),
-            Activity(name: 'Fazer...', blockTime: '2 horas'),
-            Activity(name: 'Assistir...', blockTime: '1 hora'),
-            Activity(name: 'Domir...', blockTime: '30 minutos'),
-          ],
-          imageUrl: args['imageUrl'] as String?,
-          dayUsed: args['dayUsed'] as String? ?? '3',
-        );
-      },
+      homePage: (context) => _protectedRoute(context, prefs, const HomePage()),
+      profile: (context) => _protectedRoute(context, prefs, const ProfileScreen()),
+      statistics: (context) => _protectedRoute(context, prefs, const StatisticScreen()),
+      roulette: (context) => _protectedRoute(context, prefs, const RouletteScreen()),
     };
+  }
+
+  static Widget _protectedRoute(BuildContext context, SharedPreferences prefs, Widget child) {
+    bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    if (!isLoggedIn) {
+      // Usar Future.microtask para evitar problemas de navegação durante a construção do widget
+      Future.microtask(() {
+        Navigator.pushReplacementNamed(context, AppRoutes.login);
+      });
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    return child;
+  }
+
+  static Widget _ErrorRouteWidget({String? routeName, dynamic args}) {
+    print("ROTA NÃO ENCONTRADA OU ARGUMENTOS INVÁLIDOS: $routeName com argumentos: $args");
+    return Scaffold(
+      appBar: AppBar(title: const Text('Erro de Rota')),
+      body: Center(child: Text('Rota não encontrada ou args inválidos para: $routeName')),
+    );
+  }
+
+  static Future<void> _handleLogin(BuildContext context, SharedPreferences prefs) async {
+    print('AppRoutes: _handleLogin - Navegando para /homepage');
+    Navigator.pushNamedAndRemoveUntil(context, AppRoutes.homePage, (route) => false);
   }
 
   static Route<dynamic> onUnknownRoute(RouteSettings settings) {
     return MaterialPageRoute(
       builder: (context) => Scaffold(
-        body: Center(
-          child: Text('Rota não encontrada: ${settings.name}'),
-        ),
+        appBar: AppBar(title: const Text('Rota Desconhecida')),
+        body: Center(child: Text('Rota não encontrada: ${settings.name}')),
       ),
     );
-  }
-
-  static Future<void> _handleRegistration(BuildContext context, SharedPreferences prefs) async {
-    await prefs.setBool('isFirstTime', false);
-    await prefs.setBool('isLoggedIn', true);
-    print('Registration completed - Navigating to /homepage');
-    Navigator.pushReplacementNamed(context, '/homepage');
-  }
-
-  static Future<void> _handleLogin(BuildContext context, SharedPreferences prefs) async {
-    await prefs.setBool('isLoggedIn', true);
-    print('Login completed - Navigating to /homepage');
-    Navigator.pushReplacementNamed(context, '/homepage');
   }
 }

@@ -1,10 +1,9 @@
-
 import 'package:heartsync/data/datasources/usage_remote_data_source.dart';
 
 abstract class UsageRepository {
-  Future<double> getTodayUsage();
+  Future<double> getTodayUsage(int userId);
   Future<List<double>> getWeeklyUsage(int userId);
-  Future<double> getUsageLimit();
+  Future<double> getUsageLimit(int userId);
 }
 
 class UsageRepositoryImpl implements UsageRepository {
@@ -13,15 +12,13 @@ class UsageRepositoryImpl implements UsageRepository {
   UsageRepositoryImpl(this.remoteDataSource);
 
   @override
-  Future<double> getTodayUsage() => remoteDataSource.getDeviceUsageToday();
+  Future<double> getTodayUsage(int userId) => remoteDataSource.getDeviceUsageToday(userId);
 
   @override
-  Future<List<double>> getWeeklyUsage(int userId) =>
-      remoteDataSource.getWeeklyUsage(userId);
+  Future<List<double>> getWeeklyUsage(int userId) => remoteDataSource.getWeeklyUsage(userId);
 
   @override
-  Future<double> getUsageLimit() async {
-    // Pode ser obtido do banco de dados ou de preferências
-    return 4.0; // 4 horas por padrão
+  Future<double> getUsageLimit(int userId) async {
+    return await remoteDataSource.getUsageLimit(userId) ?? 4.0; // 4 horas por padrão
   }
 }

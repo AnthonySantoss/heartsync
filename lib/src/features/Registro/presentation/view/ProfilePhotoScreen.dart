@@ -1,12 +1,10 @@
-import 'dart:convert';
-
+import 'dart:io';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/heart_code_screen.dart';
-import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
+import 'package:heartsync/src/utils/auth_manager.dart';
+import 'package:heartsync/servico/api_service.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
-import 'package:http/http.dart' as http;
+import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
 
 class ProfilePhotoScreen extends StatefulWidget {
   final String name;
@@ -32,6 +30,7 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
   File? _selectedImageFile;
   String? imageUrl;
   final ImagePicker _picker = ImagePicker();
+  final ApiService _apiService = ApiService(baseUrl: 'http://192.168.0.8:3000');
 
   void _pickImage() async {
     final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
@@ -46,38 +45,40 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
     }
   }
 
-  void _continue() async {
-    if (_selectedImageFile != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enviando imagem...')),
-      );
-
-      final uploadedUrl = await uploadImage(_selectedImageFile!);
-      if (uploadedUrl != null) {
-        setState(() {
-          imageUrl = uploadedUrl;
-        });
-
-        Navigator.pushNamed(
-          context,
-          '/heart-code-exchange',
-          arguments: {
-            'name': widget.name,
-            'birth': widget.birth,
-            'email': widget.email,
-            'password': widget.password,
-            'profileImagePath': imageUrl,
-            'onRegisterComplete': widget.onRegisterComplete,
-          },
-        );
-      } else {
+  Future<void> _continue() async {
+    try {
+      String? profileImagePath;
+      if (_selectedImageFile != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erro ao enviar imagem.')),
+          const SnackBar(content: Text('Enviando imagem...')),
         );
+
+        // Faz o upload da imagem usando ApiService
+        final responseData = await _apiService.uploadImage(_selectedImageFile!);
+        setState(() {
+          imageUrl = responseData['imageUrl'];
+          profileImagePath = imageUrl;
+        });
       }
-    } else {
+
+      // Chama o callback de registro concluído
+      widget.onRegisterComplete();
+
+      // Navega para a tela de registro concluído, passando o profileImagePath
+      Navigator.pushNamed(
+        context,
+        '/registration-complete',
+        arguments: {
+          'name': widget.name,
+          'birth': widget.birth,
+          'email': widget.email,
+          'password': widget.password,
+          'profileImagePath': profileImagePath,
+        },
+      );
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, selecione uma foto de perfil.')),
+        SnackBar(content: Text('Erro ao enviar imagem: $e')),
       );
     }
   }
@@ -181,30 +182,5 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
         ),
       ),
     );
-  }
-}
-
-Future<String?> uploadImage(File imageFile) async {
-  try {
-    var uri = Uri.parse('http://192.168.1.14:3000/upload');
-    var request = http.MultipartRequest('POST', uri);
-    request.files.add(await http.MultipartFile.fromPath('profile_image', imageFile.path));
-
-    var response = await request.send();
-
-    if (response.statusCode == 200) {
-      final responseData = await response.stream.bytesToString();
-      print('Resposta do servidor: $responseData');
-
-      // Tenta converter de JSON
-      final decoded = jsonDecode(responseData);
-      return decoded['imageUrl']; // ou o campo correto que o back-end retorna
-    } else {
-      print('Erro no envio. Código: ${response.statusCode}');
-      return null;
-    }
-  } catch (e) {
-    print('Exceção ao enviar imagem: $e');
-    return null;
   }
 }

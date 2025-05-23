@@ -2,17 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:heartsync/data/datasources/database_helper.dart';
 import 'package:heartsync/domain/usecases/register_user_use_case.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
+import 'package:heartsync/src/utils/auth_manager.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class RegistrationCompleteScreen extends StatelessWidget {
+class RegistrationCompleteScreen extends StatefulWidget {
   final String name;
   final String birth;
   final String email;
   final String password;
   final String? profileImagePath;
-  final String heartCode;
-  final String partnerHeartCode;
 
   const RegistrationCompleteScreen({
     super.key,
@@ -21,43 +20,57 @@ class RegistrationCompleteScreen extends StatelessWidget {
     required this.email,
     required this.password,
     this.profileImagePath,
-    required this.heartCode,
-    required this.partnerHeartCode,
   });
 
-  Future<void> _completeRegistration(BuildContext context) async {
+  @override
+  State<RegistrationCompleteScreen> createState() => _RegistrationCompleteScreenState();
+}
+
+class _RegistrationCompleteScreenState extends State<RegistrationCompleteScreen> {
+  bool _isLoading = false;
+
+  Future<void> _completeRegistration() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+
     final registerUserUseCase = GetIt.instance<RegisterUserUseCase>();
     final prefs = await SharedPreferences.getInstance();
 
     try {
-      // Salvar usuário no banco
-      await registerUserUseCase.execute(
-        nome: name,
-        email: email,
-        dataNascimento: birth,
-        senha: password,
-        temFoto: profileImagePath != null,
-        heartcode: heartCode,
+      final localId = await registerUserUseCase.execute(
+        nome: widget.name,
+        email: widget.email,
+        dataNascimento: widget.birth,
+        senha: widget.password,
+        temFoto: widget.profileImagePath != null,
+        profileImagePath: widget.profileImagePath,
       );
 
-      // Atualizar preferências
+      await AuthManager.saveSessionData(
+        token: 'local-auth-token',
+        serverId: 'local-$localId',
+        localId: localId,
+        name: widget.name,
+        email: widget.email,
+        photoUrl: widget.profileImagePath,
+      );
+
       await prefs.setBool('isFirstTime', false);
       await prefs.setBool('isLoggedIn', true);
 
-      // Navegar para a homepage
       Navigator.pushReplacementNamed(context, '/homepage');
     } catch (e) {
       String errorMessage = 'Erro ao completar registro';
-      if (e.toString().contains('Email já registrado')) {
+      if (e.toString().contains('UNIQUE constraint failed') || e.toString().contains('Email já registrado')) {
         errorMessage = 'Este email já está em uso. Tente outro.';
-      } else if (e.toString().contains('HeartCode já está em uso')) {
-        errorMessage = 'Este HeartCode já está em uso. Tente outro.';
       } else {
         errorMessage = 'Erro inesperado: $e';
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(errorMessage)),
       );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -79,7 +92,7 @@ class RegistrationCompleteScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               const Text(
-                'Você e seu parceiro estão sincronizados!',
+                'Bem-vindo(a) ao HeartSync!',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -88,7 +101,7 @@ class RegistrationCompleteScreen extends StatelessWidget {
               ),
               const SizedBox(height: 40),
               ElevatedButton(
-                onPressed: () => _completeRegistration(context),
+                onPressed: _isLoading ? null : _completeRegistration,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF7D48FE),
                   minimumSize: const Size(200, 60),
@@ -96,7 +109,13 @@ class RegistrationCompleteScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                 ),
-                child: const Text(
+                child: _isLoading
+                    ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                )
+                    : const Text(
                   'Ir para a Homepage',
                   style: TextStyle(
                     fontSize: 20,
