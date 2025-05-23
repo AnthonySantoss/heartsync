@@ -1,7 +1,10 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/ProfilePhotoScreen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:heartsync/src/utils/auth_manager.dart';
+import 'package:heartsync/data/datasources/database_helper.dart';
+import 'package:heartsync/domain/usecases/register_user_use_case.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
+import 'package:get_it/get_it.dart';
 
 class VerificationCodeScreen extends StatefulWidget {
   final String email;
@@ -28,24 +31,74 @@ class VerificationCodeScreen extends StatefulWidget {
 class VerificationCodeScreenState extends State<VerificationCodeScreen> {
   final _codeController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
 
-  void _verifyCode() {
+  Future<void> _verifyCode() async {
     if (_formKey.currentState!.validate()) {
       if (_codeController.text == widget.verificationCode) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Código verificado com sucesso!')),
-        );
-        Navigator.pushNamed(
-          context,
-          '/profile-photo',
-          arguments: {
-            'name': widget.name,
-            'birth': widget.birth,
-            'email': widget.email,
-            'password': widget.password,
-            'onRegisterComplete': widget.onRegisterComplete,
-          },
-        );
+        setState(() => _isLoading = true);
+
+        final registerUserUseCase = GetIt.instance<RegisterUserUseCase>();
+        final prefs = await SharedPreferences.getInstance();
+
+        try {
+          // Registrar o usuário
+          final localId = await registerUserUseCase.execute(
+            nome: widget.name,
+            email: widget.email,
+            dataNascimento: widget.birth,
+            senha: widget.password,
+            temFoto: false, // Será atualizado na ProfilePhotoScreen
+            profileImagePath: null,
+          );
+          print('Usuário registrado com ID: $localId');
+
+          // Salvar dados da sessão no AuthManager
+          await AuthManager.saveSessionData(
+            token: 'local-auth-token',
+            serverId: 'local-$localId',
+            localId: localId,
+            name: widget.name,
+            email: widget.email,
+            photoUrl: null,
+          );
+
+          // Definir flags no SharedPreferences
+          await prefs.setBool('isFirstTime', false);
+          await prefs.setBool('isLoggedIn', true);
+
+          // Chamar o callback de registro completo
+          widget.onRegisterComplete();
+
+          // Navegar para a ProfilePhotoScreen
+          await Navigator.pushNamed(
+            context,
+            '/profile-photo',
+            arguments: {
+              'name': widget.name,
+              'birth': widget.birth,
+              'email': widget.email,
+              'password': widget.password,
+            },
+          );
+        } catch (e) {
+          print('Erro durante o registro: $e');
+          String errorMessage = 'Erro ao completar registro';
+          if (e.toString().contains('UNIQUE constraint failed') || e.toString().contains('Email já registrado')) {
+            errorMessage = 'Este email já está em uso. Tente outro.';
+          } else {
+            errorMessage = 'Erro inesperado: $e';
+          }
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(errorMessage)),
+            );
+          }
+        } finally {
+          if (mounted) {
+            setState(() => _isLoading = false);
+          }
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Código inválido! Tente novamente.')),
@@ -134,13 +187,19 @@ class VerificationCodeScreenState extends State<VerificationCodeScreen> {
               ),
               const SizedBox(height: 105),
               ElevatedButton(
-                onPressed: _verifyCode,
+                onPressed: _isLoading ? null : _verifyCode,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF7D48FE),
                   minimumSize: const Size(double.infinity, 66),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
-                child: const Text(
+                child: _isLoading
+                    ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                )
+                    : const Text(
                   'Verificar',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white),
                 ),

@@ -1,44 +1,174 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:heartsync/src/features/Menu/presentation/view/statistic_screen.dart';
-import 'package:heartsync/src/features/Roleta/presentation/view/Roulette_screen.dart';
+import 'package:heartsync/src/utils/auth_manager.dart';
+import 'package:heartsync/servico/StatisticService.dart';
+import 'package:heartsync/data/datasources/database_helper.dart';
+import 'package:get_it/get_it.dart';
+import 'package:intl/intl.dart';
+import 'package:heartsync/domain/entities/user.dart';
 
-class HomePage extends StatelessWidget {
-  // Dados que o back-end deve fornecer
-  final String? profileImageUrl; // URL da imagem de perfil do usuário
-  final String isabelaUsageTime; // Ex.: "1h20min"
-  final String ricardoUsageTime; // Ex.: "2h10min"
-  final String userRemainingTime; // Ex.: "2h40min"
-  final String nextRouletteTime; // Ex.: "4h20min"
-  final String lastRouletteActivity; // Ex.: "Cinema 🍿"
-  final String streakCount; // Ex.: "3"
-  final List<Map<String, dynamic>> messages; // Lista de recados
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
 
-  const HomePage({
-    super.key,
-    this.profileImageUrl,
-    this.isabelaUsageTime = '1h20min',
-    this.ricardoUsageTime = '2h10min',
-    this.userRemainingTime = '2h40min',
-    this.nextRouletteTime = '4h20min',
-    this.lastRouletteActivity = 'Cinema 🍿',
-    this.streakCount = '3',
-    this.messages = const [
-      {'text': 'Comprar a ração do Sargento', 'time': '14:26', 'isOther': false},
-      {'text': 'Trocar o pneu da sua bicicleta', 'time': 'Ontem', 'isOther': true},
-      {'text': 'Pneu furou!', 'time': 'Ontem', 'isOther': true},
-    ],
-  });
+  @override
+  _HomePageState createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final StatisticService _statisticService = GetIt.instance<StatisticService>();
+  final DatabaseHelper _databaseHelper = GetIt.instance<DatabaseHelper>();
+
+  User? user;
+  String usageTime = '0h00min';
+  String userRemainingTime = '0h00min';
+  String nextRouletteTime = '4h20min';
+  String lastRouletteActivity = 'Cinema 🍿';
+  int streakCount = 0;
+  List<Map<String, dynamic>> messages = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    print('HomePage: initState chamado');
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      setState(() {
+        isLoading = true;
+      });
+      print('HomePage: Iniciando carregamento de dados');
+
+      print('HomePage: Verificando se o usuário está logado');
+      final isLoggedIn = await AuthManager.isLoggedIn();
+      print('HomePage: Resultado de AuthManager.isLoggedIn(): $isLoggedIn');
+      if (!isLoggedIn) {
+        print('HomePage: Usuário não está logado, redirecionando para /login');
+        await _logout(context);
+        return;
+      }
+
+      print('HomePage: Obtendo localId do AuthManager');
+      final userId = await AuthManager.getLocalId();
+      print('HomePage: localId obtido: $userId');
+      if (userId == null) {
+        print('HomePage: localId é nulo, redirecionando para /login');
+        await _logout(context);
+        return;
+      }
+
+      print('HomePage: Obtendo dados do usuário do banco');
+      final users = await _databaseHelper.getUsuarios();
+      print('HomePage: Usuários encontrados no banco: $users');
+      final userData = users.firstWhere(
+            (u) => u['id'] == userId,
+        orElse: () => throw Exception('Usuário não encontrado no banco de dados'),
+      );
+      user = User.fromDbMap(userData);
+      print('HomePage: Usuário carregado: ${user!.name}');
+
+      print('HomePage: Obtendo dados estatísticos');
+      final stats = await _statisticService.getStatisticData(
+        userId,
+        DateTime.now().toIso8601String().split('T')[0],
+      );
+      print('HomePage: Dados estatísticos obtidos: $stats');
+
+      print('HomePage: Obtendo recados');
+      final recados = await _databaseHelper.getRecados(userId);
+      print('HomePage: Recados obtidos: $recados');
+
+      print('HomePage: Obtendo streakCount');
+      final streak = await _databaseHelper.getStreakCount(userId);
+      print('HomePage: streakCount obtido: $streak');
+
+      print('HomePage: Obtendo dados da roleta');
+      final rouletteData = await _databaseHelper.getLatestRoulette(userId);
+      print('HomePage: Dados da roleta obtidos: $rouletteData');
+
+      final now = DateTime.now();
+      print('HomePage: Calculando nextRouletteTime');
+      nextRouletteTime = _calculateNextRouletteTime(now);
+      print('HomePage: nextRouletteTime calculado: $nextRouletteTime');
+
+      setState(() {
+        usageTime = stats['totalTime'] ?? '0h00min';
+        userRemainingTime = stats['remainingTime'] ?? '0h00min';
+        messages = recados.map((r) => {
+          'text': r['texto'],
+          'time': r['dataHora'],
+          'isOther': r['isOther'] == 1,
+        }).toList();
+        streakCount = streak;
+        if (rouletteData != null) {
+          lastRouletteActivity = rouletteData['atividade'] ?? 'Cinema 🍿';
+        }
+        isLoading = false;
+      });
+      print('HomePage: Dados carregados com sucesso');
+    } catch (e, stackTrace) {
+      print('HomePage: Erro ao carregar dados: $e');
+      print('HomePage: StackTrace: $stackTrace');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar dados: $e')),
+        );
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  String _calculateNextRouletteTime(DateTime now) {
+    final next = now.add(const Duration(hours: 4));
+    final hours = next.hour.toString().padLeft(2, '0');
+    final minutes = next.minute.toString().padLeft(2, '0');
+    return '$hours:$minutes';
+  }
+
+  Future<void> _logout(BuildContext context) async {
+    print('HomePage: Iniciando logout');
+    await AuthManager.clearSession();
+    print('HomePage: Sessão limpa, navegando para /login');
+    await Navigator.pushReplacementNamed(context, '/login');
+    print('HomePage: Navegação para /login concluída');
+  }
 
   @override
   Widget build(BuildContext context) {
+    print('HomePage: Construindo widget');
+    if (isLoading || user == null) {
+      return Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Color(0xFF170D2E),
+                Color(0xFF010101),
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+          child: const Center(
+            child: CircularProgressIndicator(
+              color: Colors.white,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Color(0xFF170D2E), // 100%
-              Color(0xFF010101), // 0%
+              Color(0xFF170D2E),
+              Color(0xFF010101),
             ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -78,38 +208,38 @@ class HomePage extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Expanded(
-          child: Container(),
-        ),
+        Expanded(child: Container()),
         Image.asset('lib/assets/images/logo.png', width: 52),
         Expanded(
           child: Align(
             alignment: Alignment.centerRight,
             child: GestureDetector(
               onTap: () {
+                print('HomePage: Navegando para /profile');
                 Navigator.pushNamed(
                   context,
                   '/profile',
                   arguments: {
-                    'userName1': 'Isabela',
-                    'heartCode1': '#543823332PA',
-                    'birthDate1': '12.03.2004',
-                    'userName2': 'Ricardo',
-                    'heartCode2': '#123456789AB',
-                    'birthDate2': '07.08.2003',
-                    'anniversaryDate': '15.05.2019',
-                    'syncDate': '01.02.2025',
-                    'imageUrl1': profileImageUrl,
-                    'imageUrl2': profileImageUrl,
+                    'userName': user!.name,
+                    'birthDate': user!.birthDate != null
+                        ? DateFormat('dd.MM.yyyy').format(user!.birthDate!)
+                        : 'Não definido',
+                    'anniversaryDate': user!.anniversaryDate != null
+                        ? DateFormat('dd.MM.yyyy').format(user!.anniversaryDate!)
+                        : 'Não definido',
+                    'syncDate': user!.syncDate != null
+                        ? DateFormat('dd.MM.yyyy').format(user!.syncDate!)
+                        : 'Não definido',
+                    'imageUrl': user!.photoUrl,
                   },
                 );
               },
               child: CircleAvatar(
                 backgroundColor: Colors.white,
-                backgroundImage: profileImageUrl != null
-                    ? NetworkImage(profileImageUrl!)
+                backgroundImage: user!.photoUrl != null
+                    ? NetworkImage(user!.photoUrl!)
                     : null,
-                child: profileImageUrl == null
+                child: user!.photoUrl == null
                     ? const Icon(Icons.person, color: Colors.black)
                     : null,
               ),
@@ -123,7 +253,8 @@ class HomePage extends StatelessWidget {
   Widget _buildUsageCard(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        Navigator.pushNamed(context, '/statistic');
+        print('HomePage: Navegando para /statistics');
+        Navigator.pushNamed(context, '/statistics'); // Corrigido de '/statistic' para '/statistics'
       },
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -131,9 +262,9 @@ class HomePage extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           gradient: const LinearGradient(
             colors: [
-              Color(0xFFB02D78), // 100%
-              Color(0xFF230640), // 50%
-              Color(0xFF015021), // 0%
+              Color(0xFFB02D78),
+              Color(0xFF230640),
+              Color(0xFF015021),
             ],
             stops: [0.0, 0.5, 1.0],
             begin: Alignment.topLeft,
@@ -144,41 +275,32 @@ class HomePage extends StatelessWidget {
           children: [
             const Text(
               'Tempo de uso',
-              style: TextStyle(color: Color(0xFFD9D9D9), fontSize: 24, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Color(0xFFD9D9D9),
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+            Column(
               children: [
-                Column(
-                  children: [
-                    const Text(
-                      'Isabela',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Color(0xFFD9D9D9), fontSize: 16),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      isabelaUsageTime,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ],
+                Text(
+                  user!.name,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFFD9D9D9),
+                    fontSize: 18,
+                  ),
                 ),
-                Column(
-                  children: [
-                    const Text(
-                      'Ricardo',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Color(0xFFD9D9D9), fontSize: 18),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      ricardoUsageTime,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                  ],
+                const SizedBox(height: 4),
+                Text(
+                  usageTime,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
@@ -219,6 +341,7 @@ class HomePage extends StatelessWidget {
         Expanded(
           child: GestureDetector(
             onTap: () {
+              print('HomePage: Navegando para /roulette');
               Navigator.pushNamed(context, '/roulette');
             },
             child: Container(
@@ -320,7 +443,14 @@ class HomePage extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('Série', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              const Text(
+                'Série',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 10),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -332,8 +462,12 @@ class HomePage extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    streakCount,
-                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                    streakCount.toString(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
@@ -359,7 +493,11 @@ class HomePage extends StatelessWidget {
           children: [
             const Text(
               'Recados',
-              style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 10),
             Expanded(
@@ -388,7 +526,7 @@ class HomePage extends StatelessWidget {
         children: [
           CircleAvatar(
             child: const Icon(Icons.person, color: Colors.black),
-            backgroundColor: isOther ? Colors.white : Colors.white,
+            backgroundColor: Colors.white,
             radius: 15,
           ),
           const SizedBox(width: 10),
@@ -405,12 +543,5 @@ class HomePage extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Future<void> _logout(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isLoggedIn', false);
-    print('Logout realizado - Navegando para /home'); // Debug
-    Navigator.pushReplacementNamed(context, '/home');
   }
 }

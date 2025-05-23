@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:heartsync/src/features/Registro/presentation/view/ProfilePhotoScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:heartsync/src/utils/auth_manager.dart';
 
@@ -16,11 +17,8 @@ import 'package:heartsync/src/features/Registro/presentation/view/Registration_s
 import 'package:heartsync/src/features/Registro/presentation/view/Birth_screen.dart';
 import 'package:heartsync/src/features/Registro/presentation/view/Credentials_screen.dart';
 import 'package:heartsync/src/features/Registro/presentation/view/verification_code_screen.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/ProfilePhotoScreen.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/registration_complete_screen.dart';
 
 class AppRoutes {
-  // Nomes de Rotas (Constantes)
   static const String initialRouteSelector = '/';
   static const String intro = '/intro';
   static const String home = '/home';
@@ -28,8 +26,7 @@ class AppRoutes {
   static const String birth = '/birth';
   static const String credentials = '/credentials';
   static const String verificationCode = '/verification_code';
-  static const String profilePhoto = '/profile-photo';
-  static const String registrationComplete = '/registration-complete';
+  static const String profilePhoto = '/profile-photo'; // Adicionado
   static const String login = '/login';
   static const String homePage = '/homepage';
   static const String profile = '/profile';
@@ -105,27 +102,13 @@ class AppRoutes {
             password: args['password'] as String? ?? '',
             verificationCode: args['verificationCode'] as String? ?? '',
             onRegisterComplete: () {
-              Navigator.pushNamed(context, AppRoutes.profilePhoto, arguments: {
-                'name': args['name'],
-                'birth': args['birth'],
-                'email': args['email'],
-                'password': args['password'],
-                'onRegisterComplete': () {
-                  Navigator.pushNamed(context, AppRoutes.registrationComplete, arguments: {
-                    'name': args['name'],
-                    'birth': args['birth'],
-                    'email': args['email'],
-                    'password': args['password'],
-                    'profileImagePath': '',
-                  });
-                },
-              });
+              // Navegação para a ProfilePhotoScreen agora é tratada dentro da VerificationCodeScreen
             },
           );
         }
         return _ErrorRouteWidget(routeName: verificationCode, args: args);
       },
-      profilePhoto: (context) {
+      profilePhoto: (context) { // Adicionado
         final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
         if (args != null) {
           return ProfilePhotoScreen(
@@ -133,48 +116,18 @@ class AppRoutes {
             birth: args['birth'] as String? ?? '',
             email: args['email'] as String? ?? '',
             password: args['password'] as String? ?? '',
-            onRegisterComplete: args['onRegisterComplete'] as VoidCallback? ??
-                    () => Navigator.pushNamed(context, AppRoutes.registrationComplete, arguments: {
-                  'name': args['name'],
-                  'birth': args['birth'],
-                  'email': args['email'],
-                  'password': args['password'],
-                  'profileImagePath': '',
-                }),
+            onRegisterComplete: () {
+              Navigator.pushNamedAndRemoveUntil(context, AppRoutes.homePage, (route) => false);
+            },
           );
         }
         return _ErrorRouteWidget(routeName: profilePhoto, args: args);
       },
-      registrationComplete: (context) {
-        final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
-        if (args != null) {
-          return RegistrationCompleteScreen(
-            name: args['name'] as String? ?? '',
-            birth: args['birth'] as String? ?? '',
-            email: args['email'] as String? ?? '',
-            password: args['password'] as String? ?? '',
-            profileImagePath: args['profileImagePath'] as String? ?? '',
-          );
-        }
-        return _ErrorRouteWidget(routeName: registrationComplete, args: args);
-      },
-      homePage: (context) => _protectedRoute(context, prefs, const HomePage()),
-      profile: (context) => _protectedRoute(context, prefs, const ProfileScreen()),
-      statistics: (context) => _protectedRoute(context, prefs, const StatisticScreen()),
-      roulette: (context) => _protectedRoute(context, prefs, const RouletteScreen()),
+      homePage: (context) => const HomePage(),
+      profile: (context) => const ProfileScreen(),
+      statistics: (context) => const StatisticScreen(),
+      roulette: (context) => const RouletteScreen(),
     };
-  }
-
-  static Widget _protectedRoute(BuildContext context, SharedPreferences prefs, Widget child) {
-    bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
-    if (!isLoggedIn) {
-      // Usar Future.microtask para evitar problemas de navegação durante a construção do widget
-      Future.microtask(() {
-        Navigator.pushReplacementNamed(context, AppRoutes.login);
-      });
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-    return child;
   }
 
   static Widget _ErrorRouteWidget({String? routeName, dynamic args}) {

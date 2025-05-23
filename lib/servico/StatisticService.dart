@@ -11,7 +11,7 @@ class StatisticService {
 
   Future<Map<String, dynamic>> getStatisticData(int userId, String dataUso) async {
     try {
-      // Obter dados do usuário do banco local
+      // Obter dados do usuário diretamente pelo ID
       final usuario = (await _dbHelper.getUsuarios())
           .firstWhere((u) => u['id'] == userId, orElse: () => throw Exception('Usuário não encontrado'));
 

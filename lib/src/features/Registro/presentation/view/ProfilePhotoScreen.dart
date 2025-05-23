@@ -5,6 +5,8 @@ import 'package:heartsync/src/utils/auth_manager.dart';
 import 'package:heartsync/servico/api_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
+import 'package:heartsync/data/datasources/database_helper.dart';
+import 'package:get_it/get_it.dart';
 
 class ProfilePhotoScreen extends StatefulWidget {
   final String name;
@@ -31,6 +33,7 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
   String? imageUrl;
   final ImagePicker _picker = ImagePicker();
   final ApiService _apiService = ApiService(baseUrl: 'http://192.168.0.8:3000');
+  final DatabaseHelper _databaseHelper = GetIt.instance<DatabaseHelper>();
 
   void _pickImage() async {
     final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
@@ -48,6 +51,14 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
   Future<void> _continue() async {
     try {
       String? profileImagePath;
+      bool temFoto = false;
+
+      // Obter o localId do AuthManager
+      final localId = await AuthManager.getLocalId();
+      if (localId == null) {
+        throw Exception('ID do usuário não encontrado. Por favor, faça login novamente.');
+      }
+
       if (_selectedImageFile != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Enviando imagem...')),
@@ -58,24 +69,27 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
         setState(() {
           imageUrl = responseData['imageUrl'];
           profileImagePath = imageUrl;
+          temFoto = true;
         });
+
+        // Atualizar o AuthManager com a URL da foto
+        await AuthManager.updateUserProfile(photoUrl: profileImagePath);
       }
+
+      // Atualizar o banco de dados com os dados da foto
+      final db = await _databaseHelper.database;
+      await db.update(
+        'usuarios',
+        {
+          'temFoto': temFoto ? 1 : 0,
+          'profileImagePath': profileImagePath,
+        },
+        where: 'id = ?',
+        whereArgs: [localId],
+      );
 
       // Chama o callback de registro concluído
       widget.onRegisterComplete();
-
-      // Navega para a tela de registro concluído, passando o profileImagePath
-      Navigator.pushNamed(
-        context,
-        '/registration-complete',
-        arguments: {
-          'name': widget.name,
-          'birth': widget.birth,
-          'email': widget.email,
-          'password': widget.password,
-          'profileImagePath': profileImagePath,
-        },
-      );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao enviar imagem: $e')),

@@ -1,46 +1,65 @@
 class User {
-  final String serverId; // ID do backend (ex: MongoDB ObjectId string, ou UUID string)
-  final int? localId;    // ID auto-incrementado do SQLite local (pode ser nulo se ainda não salvo)
+  final String serverId;
+  final int? localId;
   String name;
   String email;
   String? photoUrl;
   DateTime? birthDate;
-  String? token; // Adicionado para consistência com DatabaseHelper, embora possa ser gerenciado separadamente
+  String? token;
+  DateTime? anniversaryDate;
+  DateTime? syncDate;
 
   User({
-    required this.serverId, // Obrigatório ao vir do backend ou após registro
+    required this.serverId,
     this.localId,
     required this.name,
     required this.email,
     this.photoUrl,
     this.birthDate,
     this.token,
+    this.anniversaryDate,
+    this.syncDate,
   });
 
-  // Construtor para criar um usuário a partir de um mapa do SQLite
   factory User.fromDbMap(Map<String, dynamic> map) {
     DateTime? parsedBirthDate;
-    if (map['birthDate'] != null && map['birthDate'] is String && (map['birthDate'] as String).isNotEmpty) {
-      parsedBirthDate = DateTime.tryParse(map['birthDate'] as String);
+    if (map['dataNascimento'] != null && map['dataNascimento'] is String && (map['dataNascimento'] as String).isNotEmpty) {
+      parsedBirthDate = DateTime.tryParse(map['dataNascimento'] as String);
+    }
+    DateTime? parsedAnniversaryDate;
+    if (map['anniversaryDate'] != null && map['anniversaryDate'] is String && (map['anniversaryDate'] as String).isNotEmpty) {
+      parsedAnniversaryDate = DateTime.tryParse(map['anniversaryDate'] as String);
+    }
+    DateTime? parsedSyncDate;
+    if (map['syncDate'] != null && map['syncDate'] is String && (map['syncDate'] as String).isNotEmpty) {
+      parsedSyncDate = DateTime.tryParse(map['syncDate'] as String);
     }
     return User(
       localId: map['id'] as int?,
-      serverId: map['serverId'] as String, // serverId é esperado do DB local
-      name: map['name'] as String,
+      serverId: map['serverId'] as String? ?? 'local-${map['id']}',
+      name: map['nome'] as String,
       email: map['email'] as String,
-      photoUrl: map['photoUrl'] as String?,
+      photoUrl: map['profileImagePath'] as String?,
       birthDate: parsedBirthDate,
-      token: map['token'] as String?, // Ler token se estiver no mapa do DB
+      token: map['token'] as String?,
+      anniversaryDate: parsedAnniversaryDate,
+      syncDate: parsedSyncDate,
     );
   }
 
-  // Construtor para criar um usuário a partir de um JSON da API
   factory User.fromJson(Map<String, dynamic> json) {
     DateTime? parsedBirthDate;
     if (json['birthDate'] != null && json['birthDate'] is String && (json['birthDate'] as String).isNotEmpty) {
       parsedBirthDate = DateTime.tryParse(json['birthDate'] as String);
     }
-    // O backend usa '_id' ou 'id'. O server.js usa '_id'.
+    DateTime? parsedAnniversaryDate;
+    if (json['anniversaryDate'] != null && json['anniversaryDate'] is String && (json['anniversaryDate'] as String).isNotEmpty) {
+      parsedAnniversaryDate = DateTime.tryParse(json['anniversaryDate'] as String);
+    }
+    DateTime? parsedSyncDate;
+    if (json['syncDate'] != null && json['syncDate'] is String && (json['syncDate'] as String).isNotEmpty) {
+      parsedSyncDate = DateTime.tryParse(json['syncDate'] as String);
+    }
     final idFromJson = json['_id'] ?? json['id'];
     if (idFromJson == null || idFromJson is! String) {
       throw FormatException("ID do usuário inválido ou ausente no JSON da API: $json");
@@ -52,28 +71,28 @@ class User {
       email: json['email'] as String,
       photoUrl: json['photoUrl'] as String?,
       birthDate: parsedBirthDate,
-      // localId e token não vêm diretamente do JSON da API de perfil (token vem do login/registro)
+      anniversaryDate: parsedAnniversaryDate,
+      syncDate: parsedSyncDate,
     );
   }
 
-  // Método para converter o User para um Map para inserir/atualizar no SQLite
   Map<String, dynamic> toDbMap() {
     final map = <String, dynamic>{
-      // 'id': localId, // O SQLite auto-incrementa 'id', não precisa enviar para insert se for nulo
       'serverId': serverId,
-      'name': name,
+      'nome': name,
       'email': email,
-      'photoUrl': photoUrl,
-      'birthDate': birthDate?.toIso8601String(),
-      'token': token, // Salvar token no DB local
+      'profileImagePath': photoUrl,
+      'dataNascimento': birthDate?.toIso8601String(),
+      'token': token,
+      'anniversaryDate': anniversaryDate?.toIso8601String(),
+      'syncDate': syncDate?.toIso8601String(),
     };
     if (localId != null) {
-      map['id'] = localId; // Inclui id para updates
+      map['id'] = localId;
     }
     return map;
   }
 
-  // Método para converter o User para JSON para enviar ao backend (ex: update profile)
   Map<String, dynamic> toJsonForApi() {
     final map = <String, dynamic>{
       'name': name,
@@ -85,8 +104,12 @@ class User {
     if (birthDate != null) {
       map['birthDate'] = birthDate!.toIso8601String();
     }
-    // serverId e localId não são enviados no corpo do JSON para update,
-    // o endpoint (ex: /users/:id) já identifica o usuário.
+    if (anniversaryDate != null) {
+      map['anniversaryDate'] = anniversaryDate!.toIso8601String();
+    }
+    if (syncDate != null) {
+      map['syncDate'] = syncDate!.toIso8601String();
+    }
     return map;
   }
 
@@ -98,8 +121,12 @@ class User {
     String? photoUrl,
     DateTime? birthDate,
     String? token,
-    bool setPhotoUrlToNull = false, // Para explicitamente setar photoUrl como null
-    bool setBirthDateToNull = false, // Para explicitamente setar birthDate como null
+    DateTime? anniversaryDate,
+    DateTime? syncDate,
+    bool setPhotoUrlToNull = false,
+    bool setBirthDateToNull = false,
+    bool setAnniversaryDateToNull = false,
+    bool setSyncDateToNull = false,
   }) {
     return User(
       serverId: serverId ?? this.serverId,
@@ -109,6 +136,8 @@ class User {
       photoUrl: setPhotoUrlToNull ? null : (photoUrl ?? this.photoUrl),
       birthDate: setBirthDateToNull ? null : (birthDate ?? this.birthDate),
       token: token ?? this.token,
+      anniversaryDate: setAnniversaryDateToNull ? null : (anniversaryDate ?? this.anniversaryDate),
+      syncDate: setSyncDateToNull ? null : (syncDate ?? this.syncDate),
     );
   }
 }
