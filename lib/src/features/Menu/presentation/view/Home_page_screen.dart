@@ -258,6 +258,8 @@ class _HomePageState extends State<HomePage> {
         Navigator.pushNamed(context, '/statistics'); // Corrigido de '/statistic' para '/statistics'
       },
       child: Container(
+        width: 423,
+        height: 272,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
