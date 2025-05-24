@@ -1,5 +1,6 @@
 import 'package:heartsync/data/datasources/database_helper.dart';
-import 'package:heartsync/servico/device_usage.dart';
+// O import de device_usage.dart foi removido pois não era usado diretamente aqui
+// e as funcionalidades de device usage agora são acessadas via UsageRepository.
 import 'package:heartsync/domain/repositories/usage_repository.dart';
 import 'package:get_it/get_it.dart';
 
@@ -7,37 +8,47 @@ class StatisticService {
   final DatabaseHelper _dbHelper;
   final UsageRepository _usageRepository;
 
+  // Construtor modificado para injetar UsageRepository explicitamente,
+  // embora buscar via GetIt.instance no construtor também funcione se já registrado.
+  // Para melhor testabilidade e clareza, a injeção via construtor é preferível
+  // quando o DI é configurado para passar a instância.
+  // Se você registrou StatisticService com GetIt passando _dbHelper,
+  // e quer que _usageRepository seja resolvido por GetIt, a forma original está OK.
+  // Vou manter a forma original para consistência com o código fornecido.
   StatisticService(this._dbHelper) : _usageRepository = GetIt.instance<UsageRepository>();
+
+  // Alternativa com injeção explícita (requer mudança no DI para StatisticService):
+  // StatisticService({required DatabaseHelper dbHelper, required UsageRepository usageRepository})
+  //     : _dbHelper = dbHelper,
+  //       _usageRepository = usageRepository;
+
 
   Future<Map<String, dynamic>> getStatisticData(int userId, String dataUso) async {
     try {
-      // Obter dados do usuário diretamente pelo ID
       final usuario = (await _dbHelper.getUsuarios())
           .firstWhere((u) => u['id'] == userId, orElse: () => throw Exception('Usuário não encontrado'));
 
-      // Obter tempo de uso real do dispositivo via UsageRepository
-      final tempoUsado = (await _usageRepository.getTodayUsage(userId)) * 60; // Converter horas para minutos
+      // Obter tempo de uso real do dispositivo via UsageRepository (espera-se que retorne horas)
+      final double usageHours = await _usageRepository.getTodayUsage(userId);
+      final int tempoUsado = (usageHours * 60).toInt(); // Converter horas para minutos
 
-      // Obter limite de uso do back-end
-      final metaUso = (await _usageRepository.getUsageLimit(userId)) * 60; // Converter horas para minutos
+      // Obter limite de uso (espera-se que retorne horas)
+      final double limitHours = await _usageRepository.getUsageLimit(userId);
+      final int metaUso = (limitHours * 60).toInt(); // Converter horas para minutos
 
-      // Atualizar o banco com o tempo de uso, evitando duplicatas
-      await _updateUsoCelular(userId, dataUso, metaUso.toInt(), tempoUsado.toInt());
+      await _updateUsoCelular(userId, dataUso, metaUso, tempoUsado);
 
-      // Obter tempo restante do banco local
       final tempoRestante = await _dbHelper.getTempoRestante(userId, dataUso);
-
-      // Obter uso semanal do banco local
       final usoSemanal = await _dbHelper.getUsoCelularUltimaSemana(userId);
       final mediaSemanal = await _dbHelper.getMediaSemanal(userId);
 
-      // Preparar dados semanais (7 dias)
       final usageData = List<double>.generate(7, (index) {
         final data = DateTime.now().subtract(Duration(days: 6 - index)).toIso8601String().split('T')[0];
-        return usoSemanal.firstWhere(
+        final dailyEntry = usoSemanal.firstWhere(
               (u) => u['dataUso'] == data,
           orElse: () => {'tempoUsadoEmMinutos': 0},
-        )['tempoUsadoEmMinutos'].toDouble() / 60;
+        );
+        return (dailyEntry['tempoUsadoEmMinutos'] ?? 0).toDouble() / 60; // Horas
       });
 
       final diasUsados = usoSemanal.length;
@@ -45,11 +56,11 @@ class StatisticService {
       return {
         'userName': usuario['nome'] ?? 'Usuário',
         'imageUrl': usuario['temFoto'] == 1 ? usuario['profileImagePath'] ?? 'URL_DA_FOTO' : null,
-        'remainingTime': formatMinutes(tempoRestante['tempoRestante']),
-        'totalTime': formatMinutes(tempoRestante['tempoUsado']),
+        'remainingTime': formatMinutes(tempoRestante['tempoRestante'] ?? 0),
+        'totalTime': formatMinutes(tempoRestante['tempoUsado'] ?? 0),
         'usageData': usageData,
-        'dailyTimeLimit': formatMinutes(tempoRestante['metaUso']),
-        'timeLimitRange': '00:00 – 24:00', // Ajustar conforme necessário
+        'dailyTimeLimit': formatMinutes(tempoRestante['metaUso'] ?? 0),
+        'timeLimitRange': '00:00 – 24:00',
         'weeklyAverage': '${mediaSemanal.toStringAsFixed(0)} min',
         'dayUsed': diasUsados.toString(),
       };
