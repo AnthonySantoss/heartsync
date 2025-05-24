@@ -1,6 +1,4 @@
 import 'package:heartsync/data/datasources/database_helper.dart';
-// O import de device_usage.dart foi removido pois não era usado diretamente aqui
-// e as funcionalidades de device usage agora são acessadas via UsageRepository.
 import 'package:heartsync/domain/repositories/usage_repository.dart';
 import 'package:get_it/get_it.dart';
 
@@ -8,33 +6,24 @@ class StatisticService {
   final DatabaseHelper _dbHelper;
   final UsageRepository _usageRepository;
 
-  // Construtor modificado para injetar UsageRepository explicitamente,
-  // embora buscar via GetIt.instance no construtor também funcione se já registrado.
-  // Para melhor testabilidade e clareza, a injeção via construtor é preferível
-  // quando o DI é configurado para passar a instância.
-  // Se você registrou StatisticService com GetIt passando _dbHelper,
-  // e quer que _usageRepository seja resolvido por GetIt, a forma original está OK.
-  // Vou manter a forma original para consistência com o código fornecido.
   StatisticService(this._dbHelper) : _usageRepository = GetIt.instance<UsageRepository>();
-
-  // Alternativa com injeção explícita (requer mudança no DI para StatisticService):
-  // StatisticService({required DatabaseHelper dbHelper, required UsageRepository usageRepository})
-  //     : _dbHelper = dbHelper,
-  //       _usageRepository = usageRepository;
-
 
   Future<Map<String, dynamic>> getStatisticData(int userId, String dataUso) async {
     try {
       final usuario = (await _dbHelper.getUsuarios())
           .firstWhere((u) => u['id'] == userId, orElse: () => throw Exception('Usuário não encontrado'));
 
-      // Obter tempo de uso real do dispositivo via UsageRepository (espera-se que retorne horas)
+      // Obter tempo de uso real do dispositivo via UsageRepository
       final double usageHours = await _usageRepository.getTodayUsage(userId);
-      final int tempoUsado = (usageHours * 60).toInt(); // Converter horas para minutos
+      print('StatisticService: Tempo de uso (horas) retornado por UsageRepository: $usageHours');
+      final int tempoUsado = (usageHours.isNaN || usageHours <= 0) ? 0 : (usageHours * 60).toInt();
+      print('StatisticService: Tempo de uso convertido (minutos): $tempoUsado');
 
-      // Obter limite de uso (espera-se que retorne horas)
+      // Obter limite de uso
       final double limitHours = await _usageRepository.getUsageLimit(userId);
-      final int metaUso = (limitHours * 60).toInt(); // Converter horas para minutos
+      print('StatisticService: Limite de uso (horas) retornado por UsageRepository: $limitHours');
+      final int metaUso = (limitHours.isNaN || limitHours <= 0) ? 120 : (limitHours * 60).toInt(); // Default 2h se inválido
+      print('StatisticService: Meta de uso convertida (minutos): $metaUso');
 
       await _updateUsoCelular(userId, dataUso, metaUso, tempoUsado);
 
@@ -57,9 +46,9 @@ class StatisticService {
         'userName': usuario['nome'] ?? 'Usuário',
         'imageUrl': usuario['temFoto'] == 1 ? usuario['profileImagePath'] ?? 'URL_DA_FOTO' : null,
         'remainingTime': formatMinutes(tempoRestante['tempoRestante'] ?? 0),
-        'totalTime': formatMinutes(tempoRestante['tempoUsado'] ?? 0),
+        'totalTime': formatMinutes(tempoRestante['tempoUsado'] ?? tempoUsado), // Usar tempoUsado diretamente se nulo
         'usageData': usageData,
-        'dailyTimeLimit': formatMinutes(tempoRestante['metaUso'] ?? 0),
+        'dailyTimeLimit': formatMinutes(tempoRestante['metaUso'] ?? metaUso), // Usar metaUso diretamente se nulo
         'timeLimitRange': '00:00 – 24:00',
         'weeklyAverage': '${mediaSemanal.toStringAsFixed(0)} min',
         'dayUsed': diasUsados.toString(),

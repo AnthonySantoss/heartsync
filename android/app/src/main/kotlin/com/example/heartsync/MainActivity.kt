@@ -17,6 +17,66 @@ import java.util.*
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.example.heartsync/usage_stats"
 
+    // Esta é a função que calcula startTime e endTime internamente para "hoje"
+    // e usa INTERVAL_BEST. É esta que queremos chamar do Dart.
+    private fun getAppUsageStatsToday(): List<Map<String, Any?>> { // Renomeada para clareza, ou manter o nome original e ajustar o MethodChannel
+        val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+
+        val calendar = Calendar.getInstance()
+        val endTime = calendar.timeInMillis
+
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        val startTime = calendar.timeInMillis
+
+        Log.d("UsageStatsNative", "Consultando dados de uso (Hoje) de: ${Date(startTime)} [${startTime}] até ${Date(endTime)} [${endTime}] com INTERVAL_BEST")
+
+        val queryUsageStats: List<UsageStats>? = usageStatsManager.queryUsageStats(
+            UsageStatsManager.INTERVAL_BEST,
+            startTime,
+            endTime
+        )
+
+        val appUsageList = mutableListOf<Map<String, Any?>>()
+        if (queryUsageStats != null) {
+            Log.d("UsageStatsNative", "queryUsageStats (Hoje) retornou ${queryUsageStats.size} registros.")
+            for (usageStat in queryUsageStats) {
+                Log.d("UsageStatsNative", "App (Hoje): ${usageStat.packageName}, " +
+                        "ForegroundTime: ${usageStat.totalTimeInForeground}ms, " +
+                        "LastUsed: ${Date(usageStat.lastTimeUsed)}, " +
+                        "FirstTimestamp: ${Date(usageStat.firstTimeStamp)}, " +
+                        "LastTimestamp: ${Date(usageStat.lastTimeStamp)}")
+
+                if (usageStat.totalTimeInForeground > 0) {
+                    try {
+                        val pm = applicationContext.packageManager
+                        val appName = try {
+                            val appInfo = pm.getApplicationInfo(usageStat.packageName, 0)
+                            pm.getApplicationLabel(appInfo).toString()
+                        } catch (e: PackageManager.NameNotFoundException) {
+                            usageStat.packageName
+                        }
+
+                        val statMap = mapOf(
+                            "packageName" to usageStat.packageName,
+                            "appName" to appName,
+                            "totalTimeInForeground" to usageStat.totalTimeInForeground,
+                            "lastTimeUsed" to usageStat.lastTimeUsed
+                        )
+                        appUsageList.add(statMap)
+                    } catch (e: Exception) {
+                        Log.e("UsageStatsNative", "Erro ao processar ${usageStat.packageName} (Hoje)", e)
+                    }
+                }
+            }
+        } else {
+            Log.d("UsageStatsNative", "queryUsageStats (Hoje) retornou nulo.")
+        }
+        return appUsageList
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
@@ -26,21 +86,52 @@ class MainActivity : FlutterActivity() {
                 }
                 "requestUsageStatsPermission" -> {
                     try {
-                        startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
-                        result.success(true)
-                    } catch (e: Exception) {
-                        Log.e("UsageStats", "Erro ao abrir ACTION_USAGE_ACCESS_SETTINGS", e)
+                        val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+                        if (intent.resolveActivity(packageManager) != null) {
+                            startActivity(intent)
+                            result.success(true)
+                        } else {
+                            Log.e("UsageStatsNative", "Nenhuma atividade para lidar com ACTION_USAGE_ACCESS_SETTINGS")
+                            result.error("NO_ACTIVITY", "Não foi possível encontrar uma atividade para ACTION_USAGE_ACCESS_SETTINGS.", null)
+                        }
+                    } catch (e: android.content.ActivityNotFoundException) {
+                        Log.e("UsageStatsNative", "ActivityNotFoundException ao abrir ACTION_USAGE_ACCESS_SETTINGS", e)
+                        result.error("NO_ACTIVITY_HANDLER", "Não foi possível abrir as configurações de acesso ao uso (ActivityNotFound).", e.localizedMessage)
+                    }
+                    catch (e: Exception) {
+                        Log.e("UsageStatsNative", "Erro ao abrir ACTION_USAGE_ACCESS_SETTINGS", e)
                         result.error("SETTINGS_ERROR", "Não foi possível abrir as configurações de acesso ao uso.", e.localizedMessage)
                     }
                 }
-                "getAppUsageStats" -> {
+                // --- CORREÇÃO APLICADA AQUI ---
+                // Este é o método que o DeviceUsageService do Dart chama.
+                // Ele não espera argumentos de tempo, pois são calculados internamente.
+                "getAppUsageStats" -> { // Nome do método corresponde ao Dart
                     if (hasUsageStatsPermission()) {
-                        val stats = getAppUsageStats()
+                        val stats = getAppUsageStatsToday() // Chama a função correta
                         result.success(stats)
                     } else {
                         result.error("PERMISSION_DENIED", "Permissão de acesso ao uso não concedida.", null)
                     }
                 }
+                // Se você ainda precisar da função que recebe startTime e endTime do Dart
+                // para outros propósitos, pode mantê-la com um nome de método diferente no channel.
+                // Exemplo: "getUsageStatsForInterval"
+                /*
+                "getUsageStatsForInterval" -> { // Exemplo de nome diferente se precisar manter a outra função
+                    val startTime = call.argument<Long>("startTime")
+                    val endTime = call.argument<Long>("endTime")
+                    if (startTime != null && endTime != null) {
+                        // Aqui você chamaria a função getUsageStats(startTime, endTime) que você tinha
+                        // e que usa INTERVAL_DAILY. Por ora, vou comentar pois o foco é "hoje".
+                        // val stats = getUsageStats(startTime, endTime)
+                        // result.success(stats)
+                        result.notImplemented() // Implementar se necessário
+                    } else {
+                        result.error("INVALID_ARGUMENTS", "startTime ou endTime nulos para getUsageStatsForInterval.", null)
+                    }
+                }
+                */
                 else -> {
                     result.notImplemented()
                 }
@@ -58,66 +149,9 @@ class MainActivity : FlutterActivity() {
         return mode == AppOpsManager.MODE_ALLOWED
     }
 
-    private fun getAppUsageStats(): List<Map<String, Any?>> {
-        val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-
-        val calendar = Calendar.getInstance()
-        val endTime = calendar.timeInMillis // Momento atual
-
-        // Configurar startTime para a meia-noite de HOJE
-        calendar.set(Calendar.HOUR_OF_DAY, 0)
-        calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0)
-        calendar.set(Calendar.MILLISECOND, 0)
-        val startTime = calendar.timeInMillis
-
-        Log.d("UsageStatsNative", "Consultando dados de uso de: ${Date(startTime)} [${startTime}] até ${Date(endTime)} [${endTime}]")
-
-        // Usando INTERVAL_BEST para obter a melhor granularidade no intervalo especificado
-        val queryUsageStats: List<UsageStats>? = usageStatsManager.queryUsageStats(
-            UsageStatsManager.INTERVAL_BEST,
-            startTime,
-            endTime
-        )
-
-        val appUsageList = mutableListOf<Map<String, Any?>>()
-        if (queryUsageStats != null) {
-            Log.d("UsageStatsNative", "Número de UsageStats retornados: ${queryUsageStats.size}")
-            for (usageStat in queryUsageStats) {
-                // Verificar se os timestamps estão dentro do intervalo do dia atual
-                if (usageStat.firstTimeStamp >= startTime && usageStat.lastTimeStamp <= endTime && usageStat.totalTimeInForeground > 0) {
-                    try {
-                        val pm = applicationContext.packageManager
-                        val appName = try {
-                            val appInfo = pm.getApplicationInfo(usageStat.packageName, 0)
-                            pm.getApplicationLabel(appInfo).toString()
-                        } catch (e: PackageManager.NameNotFoundException) {
-                            usageStat.packageName
-                        }
-
-                        Log.d("UsageStatsNative", "App: ${usageStat.packageName}, " +
-                                "ForegroundTime: ${usageStat.totalTimeInForeground}ms, " +
-                                "FirstTimestamp: ${Date(usageStat.firstTimeStamp)}, " +
-                                "LastTimestamp: ${Date(usageStat.lastTimeStamp)}, " +
-                                "Dentro do intervalo: ${usageStat.firstTimeStamp >= startTime && usageStat.lastTimeStamp <= endTime}")
-
-                        val statMap = mapOf(
-                            "packageName" to usageStat.packageName,
-                            "appName" to appName,
-                            "totalTimeInForeground" to usageStat.totalTimeInForeground,
-                            "lastTimeUsed" to usageStat.lastTimeUsed
-                        )
-                        appUsageList.add(statMap)
-                    } catch (e: Exception) {
-                        Log.e("UsageStatsNative", "Erro ao processar ${usageStat.packageName}", e)
-                    }
-                } else {
-                    Log.d("UsageStatsNative", "Ignorando ${usageStat.packageName}: fora do intervalo ou sem tempo de uso.")
-                }
-            }
-        } else {
-            Log.d("UsageStatsNative", "queryUsageStats retornou nulo.")
-        }
-        return appUsageList
-    }
+    // A função getUsageStats(startTime: Long, endTime: Long) que usa INTERVAL_DAILY
+    // foi implicitamente substituída/corrigida pela getAppUsageStatsToday() para o propósito
+    // de buscar os dados do "dia atual". Se você precisar de uma função que aceite
+    // um intervalo arbitrário do Dart, você deveria recriá-la e chamá-la com um nome de método diferente
+    // no MethodChannel (como o exemplo "getUsageStatsForInterval" acima).
 }
