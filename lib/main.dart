@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:heartsync/src/config/routes.dart';
 import 'di/injection.dart' as di; // Seu arquivo de injeção de dependência
 import 'package:provider/provider.dart'; // Importe o Provider
+import 'package:intl/date_symbol_data_local.dart'; // ADICIONADO: Para formatação de data localizada
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +17,10 @@ void main() async {
   await di.init();
   // Garante que o banco de dados seja inicializado antes de rodar o app.
   await DatabaseHelper.instance.database;
+
+  // ADICIONADO: Inicializar dados de localização para o pacote intl
+  // Isso permite que DateFormat('E', 'pt_BR') funcione corretamente para os dias da semana.
+  await initializeDateFormatting('pt_BR', null);
 
   runApp(MyApp(prefs: prefs));
 }

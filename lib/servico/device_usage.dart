@@ -16,9 +16,6 @@ class DeviceUsageService {
 
   Future<bool> requestUsageStatsPermission() async {
     try {
-      // Este método nativo tentará abrir as configurações do sistema.
-      // O resultado 'true' aqui significa que a tentativa foi feita.
-      // A permissão real precisa ser verificada novamente depois que o usuário retornar ao app.
       final bool? success = await _channel.invokeMethod('requestUsageStatsPermission');
       return success ?? false;
     } on PlatformException catch (e) {
@@ -34,14 +31,10 @@ class DeviceUsageService {
       if (stats == null) {
         return [];
       }
-      // O resultado já vem como List<Map<String, Any?>> do Kotlin,
-      // o 'dynamic' aqui é para segurança de tipo no Dart.
       return List<Map<dynamic, dynamic>>.from(stats.map((item) => item as Map<dynamic, dynamic>));
     } on PlatformException catch (e) {
       if (e.code == "PERMISSION_DENIED") {
         print("Permissão de acesso ao uso não concedida. Solicite ao usuário.");
-        // Você pode querer lançar um erro customizado aqui ou retornar um valor específico
-        // para que a UI possa reagir e chamar requestUsageStatsPermission().
         throw Exception("Permissão de acesso ao uso negada.");
       } else {
         print("Erro ao buscar estatísticas de uso: ${e.message}");
@@ -51,18 +44,20 @@ class DeviceUsageService {
   }
 }
 
-// Modelo para os dados de uso (opcional, mas recomendado)
+// Modelo para os dados de uso
 class AppUsageInfo {
   final String packageName;
   final String appName;
   final int totalTimeInForegroundMs; // Milissegundos
   final int lastTimeUsedMs; // Milissegundos desde a época
+  final bool isSystemApp; // ADICIONADO
 
   AppUsageInfo({
     required this.packageName,
     required this.appName,
     required this.totalTimeInForegroundMs,
     required this.lastTimeUsedMs,
+    required this.isSystemApp, // ADICIONADO
   });
 
   factory AppUsageInfo.fromMap(Map<dynamic, dynamic> map) {
@@ -71,6 +66,7 @@ class AppUsageInfo {
       appName: map['appName'] ?? 'N/A',
       totalTimeInForegroundMs: map['totalTimeInForeground'] ?? 0,
       lastTimeUsedMs: map['lastTimeUsed'] ?? 0,
+      isSystemApp: map['isSystemApp'] ?? true, // ADICIONADO - Assume true se não vier para filtrar por segurança
     );
   }
 
@@ -79,6 +75,6 @@ class AppUsageInfo {
 
   @override
   String toString() {
-    return 'App: $appName, Usage: ${usageDuration.inMinutes} min, Last Used: $lastUsedDateTime';
+    return 'App: $appName, Pkg: $packageName, Usage: ${usageDuration.inMinutes} min, System: $isSystemApp, Last Used: $lastUsedDateTime';
   }
 }

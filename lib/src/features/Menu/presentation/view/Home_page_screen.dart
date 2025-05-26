@@ -253,9 +253,19 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildUsageCard(BuildContext context) {
     return GestureDetector(
-      onTap: () {
+      onTap: () async { // MODIFICADO: Marcar como async (já está assim no seu código)
         print('HomePage: Navegando para /statistics');
-        Navigator.pushNamed(context, '/statistics'); // Corrigido de '/statistic' para '/statistics'
+        // MODIFICADO: Aguarda um resultado da StatisticScreen (já está assim no seu código)
+        final result = await Navigator.pushNamed(context, '/statistics');
+
+        // MODIFICADO: Se StatisticScreen retornar 'true' e o widget ainda estiver montado, recarregue os dados.
+        // (já está assim no seu código)
+        if (result == true && mounted) {
+          print('HomePage: Retornou da StatisticScreen com sucesso, recarregando dados...');
+          _loadData();
+        } else {
+          print('HomePage: Retornou da StatisticScreen, resultado: $result (sem recarregar ou widget desmontado)');
+        }
       },
       child: Container(
         width: 423,

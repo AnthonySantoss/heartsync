@@ -33,7 +33,7 @@ class StatisticService {
 
       final usageData = List<double>.generate(7, (index) {
         final data = DateTime.now().subtract(Duration(days: 6 - index)).toIso8601String().split('T')[0];
-        final dailyEntry = usoSemanal.firstWhere(
+        final dailyEntry = usoSemanal.firstWhere( // usoSemanal vem do DB
               (u) => u['dataUso'] == data,
           orElse: () => {'tempoUsadoEmMinutos': 0},
         );
