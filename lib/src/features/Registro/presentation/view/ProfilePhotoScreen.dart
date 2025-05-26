@@ -32,7 +32,7 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
   File? _selectedImageFile;
   String? imageUrl;
   final ImagePicker _picker = ImagePicker();
-  final ApiService _apiService = ApiService(baseUrl: 'http://10.0.2.2:3000'); // Base URL para emulador
+  final ApiService _apiService = ApiService(baseUrl: 'http://192.168.0.8:3000');
   final DatabaseHelper _databaseHelper = GetIt.instance<DatabaseHelper>();
 
   void _pickImage() async {
@@ -50,48 +50,79 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
 
   Future<void> _continue() async {
     try {
+      print('ProfilePhotoScreen: Iniciando _continue às ${DateTime.now()}');
+      String? serverId = await AuthManager.getServerId();
+      if (serverId == null) {
+        throw Exception('ID do usuário não encontrado. Por favor, faça login novamente.');
+      }
+      print('ProfilePhotoScreen: serverId obtido: $serverId');
+
       String? profileImagePath;
       bool temFoto = false;
 
-      final localId = await AuthManager.getLocalId();
-      if (localId == null) {
-        throw Exception('ID do usuário não encontrado. Por favor, faça login novamente.');
-      }
-
       if (_selectedImageFile != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Usando caminho local da imagem...')),
-        );
-        profileImagePath = _selectedImageFile!.path; // Usa o caminho local
+        print('ProfilePhotoScreen: Iniciando upload da foto');
+        final uploadResponse = await _apiService.uploadProfilePhoto(serverId, _selectedImageFile!);
+        profileImagePath = uploadResponse['filePath'] as String?;
         temFoto = true;
+
+        if (profileImagePath == null) {
+          throw Exception('Falha ao obter o caminho da imagem do servidor.');
+        }
+        print('ProfilePhotoScreen: Upload concluído, filePath: $profileImagePath');
       } else {
-        profileImagePath = ''; // Ou uma string vazia se não houver imagem
+        profileImagePath = '';
+        print('ProfilePhotoScreen: Nenhuma foto selecionada, prosseguindo sem foto');
       }
 
-      setState(() {
-        imageUrl = profileImagePath;
-        temFoto = true;
-      });
+      final localId = await AuthManager.getLocalId();
+      if (localId != null) {
+        print('ProfilePhotoScreen: Atualizando banco local para localId: $localId');
+        final db = await _databaseHelper.database;
+        await db.update(
+          'usuarios',
+          {
+            'temFoto': temFoto ? 1 : 0,
+            'profileImagePath': profileImagePath ?? '',
+          },
+          where: 'id = ?',
+          whereArgs: [localId],
+        );
+        print('ProfilePhotoScreen: Banco local atualizado com sucesso');
+      }
 
-      await AuthManager.updateUserProfile(photoUrl: profileImagePath);
-      final db = await _databaseHelper.database;
-      await db.update(
-        'usuarios',
-        {
-          'temFoto': temFoto ? 1 : 0,
-          'profileImagePath': profileImagePath ?? '',
-        },
-        where: 'id = ?',
-        whereArgs: [localId],
-      );
-      print('Banco de dados atualizado, profileImagePath: $profileImagePath');
+      if (profileImagePath != null) {
+        print('ProfilePhotoScreen: Salvando dados da sessão');
+        await AuthManager.saveSessionData(
+          token: await AuthManager.getToken() ?? '',
+          serverId: serverId,
+          localId: localId ?? 0,
+          name: widget.name,
+          email: widget.email,
+          photoUrl: profileImagePath,
+        );
+        print('ProfilePhotoScreen: Dados da sessão salvos');
+      }
 
-      Navigator.pushReplacementNamed(context, '/homepage');
+      print('ProfilePhotoScreen: Chamando onRegisterComplete');
       widget.onRegisterComplete();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao processar registro: $e')),
+
+      print('ProfilePhotoScreen: Navegando para /homepage');
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/homepage',
+            (Route<dynamic> route) => false,
       );
+    } catch (e) {
+      print('ProfilePhotoScreen: Erro detalhado: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao processar registro: $e'),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } finally {
+      print('ProfilePhotoScreen: _continue finalizado às ${DateTime.now()}');
     }
   }
 

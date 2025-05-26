@@ -1,7 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/verification_code_screen.dart';
 import 'package:heartsync/servico/api_service.dart';
 
 class CredentialsScreen extends StatefulWidget {
@@ -43,20 +42,17 @@ class CredentialsScreenState extends State<CredentialsScreen> {
       });
 
       try {
-        final response = await _apiService.sendVerificationCode(_emailController.text);
-        final verificationCode = response['verificationCode'] as String;
-
-        print('Código de verificação recebido para ${_emailController.text}: $verificationCode');
+        await _apiService.sendVerificationCode(_emailController.text);
+        print('Código de verificação enviado para ${_emailController.text}');
 
         Navigator.pushNamed(
           context,
-          '/verification_code', // Corrigido para corresponder ao nome da rota em AppRoutes
+          '/verification_code',
           arguments: {
             'email': _emailController.text,
             'name': widget.name,
             'birth': widget.birth,
             'password': _passwordController.text,
-            'verificationCode': verificationCode,
             'onRegisterComplete': widget.onRegisterComplete,
           },
         );

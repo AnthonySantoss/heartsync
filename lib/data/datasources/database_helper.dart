@@ -22,8 +22,9 @@ class DatabaseHelper {
     final path = join(databasePath, 'heartsync.db');
     return await openDatabase(
       path,
-      version: 2, // Versão atual do banco de dados
+      version: 2,
       onCreate: (db, version) async {
+        print('DatabaseHelper: Criando tabelas no banco de dados local');
         await db.execute('''
           CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +35,8 @@ class DatabaseHelper {
             temFoto INTEGER,
             profileImagePath TEXT,
             anniversaryDate TEXT,
-            syncDate TEXT
+            syncDate TEXT,
+            updatedAt TEXT
           )
         ''');
         await db.execute('''
@@ -67,11 +69,11 @@ class DatabaseHelper {
             FOREIGN KEY (idUsuario) REFERENCES usuarios(id)
           )
         ''');
+        print('DatabaseHelper: Tabelas criadas com sucesso');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
-        print('Migrating database from version $oldVersion to $newVersion');
+        print('DatabaseHelper: Migrando banco de dados da versão $oldVersion para $newVersion');
         if (oldVersion < 2) {
-          // Criar uma nova tabela com o esquema atualizado
           await db.execute('''
             CREATE TABLE usuarios_new (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,23 +84,19 @@ class DatabaseHelper {
               temFoto INTEGER,
               profileImagePath TEXT,
               anniversaryDate TEXT,
-              syncDate TEXT
+              syncDate TEXT,
+              updatedAt TEXT
             )
           ''');
-
-          // Copiar os dados da tabela antiga para a nova, fornecendo NULL para colunas ausentes
           await db.execute('''
-            INSERT INTO usuarios_new (id, nome, email, dataNascimento, senha, temFoto, profileImagePath, anniversaryDate, syncDate)
-            SELECT id, nome, email, dataNascimento, senha, temFoto, profileImagePath, NULL, NULL
+            INSERT INTO usuarios_new (id, nome, email, dataNascimento, senha, temFoto, profileImagePath, anniversaryDate, syncDate, updatedAt)
+            SELECT id, nome, email, dataNascimento, senha, temFoto, profileImagePath, NULL, NULL, NULL
             FROM usuarios
           ''');
-
-          // Deletar a tabela antiga
           await db.execute('DROP TABLE usuarios');
-
-          // Renomear a nova tabela
           await db.execute('ALTER TABLE usuarios_new RENAME TO usuarios');
         }
+        print('DatabaseHelper: Migração concluída');
       },
     );
   }

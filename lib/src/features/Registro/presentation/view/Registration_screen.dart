@@ -24,7 +24,7 @@ class RegistrationScreenState extends State<RegistrationScreen> {
 
   void _navigateToNextScreen() {
     if (_formKey.currentState!.validate()) {
-      print('Navegando para BirthScreen com nome: ${_nameController.text}'); // Debug
+      print('Navegando para BirthScreen com nome: ${_nameController.text}');
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -157,7 +157,7 @@ class RegistrationScreenState extends State<RegistrationScreen> {
                       ),
                       recognizer: TapGestureRecognizer()
                         ..onTap = () {
-                          print('Navegando para /login'); // Debug
+                          print('Navegando para /login');
                           Navigator.pushNamed(context, '/login');
                         },
                     ),

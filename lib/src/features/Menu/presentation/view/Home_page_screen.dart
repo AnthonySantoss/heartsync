@@ -239,7 +239,7 @@ class _HomePageState extends State<HomePage> {
                 backgroundColor: Colors.white,
                 backgroundImage: user!.photoUrl != null && user!.photoUrl!.isNotEmpty
                     ? FileImage(File(user!.photoUrl!))
-                    : NetworkImage('https://via.placeholder.com/150'),
+                    : const NetworkImage('https://via.placeholder.com/150') as ImageProvider,
                 child: user!.photoUrl == null
                     ? const Icon(Icons.person, color: Colors.black)
                     : null,
@@ -253,13 +253,9 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildUsageCard(BuildContext context) {
     return GestureDetector(
-      onTap: () async { // MODIFICADO: Marcar como async (já está assim no seu código)
+      onTap: () async {
         print('HomePage: Navegando para /statistics');
-        // MODIFICADO: Aguarda um resultado da StatisticScreen (já está assim no seu código)
         final result = await Navigator.pushNamed(context, '/statistics');
-
-        // MODIFICADO: Se StatisticScreen retornar 'true' e o widget ainda estiver montado, recarregue os dados.
-        // (já está assim no seu código)
         if (result == true && mounted) {
           print('HomePage: Retornou da StatisticScreen com sucesso, recarregando dados...');
           _loadData();

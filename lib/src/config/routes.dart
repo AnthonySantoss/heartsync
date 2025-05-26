@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:heartsync/src/features/Registro/presentation/view/ProfilePhotoScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:heartsync/src/utils/auth_manager.dart';
-
-// Telas de Fluxo Principal
 import 'package:heartsync/Intro_screen.dart';
 import 'package:heartsync/src/features/home/presentation/view/Home_screen.dart';
 import 'package:heartsync/src/features/login/presentation/view/Login_screen.dart';
@@ -11,8 +9,6 @@ import 'package:heartsync/src/features/Menu/presentation/view/Home_page_screen.d
 import 'package:heartsync/src/features/login/presentation/view/Profile_screen.dart';
 import 'package:heartsync/src/features/Menu/presentation/view/statistic_screen.dart';
 import 'package:heartsync/src/features/Roleta/presentation/view/Roulette_screen.dart';
-
-// Telas de Fluxo de Registro
 import 'package:heartsync/src/features/Registro/presentation/view/Registration_screen.dart';
 import 'package:heartsync/src/features/Registro/presentation/view/Birth_screen.dart';
 import 'package:heartsync/src/features/Registro/presentation/view/Credentials_screen.dart';
@@ -26,7 +22,7 @@ class AppRoutes {
   static const String birth = '/birth';
   static const String credentials = '/credentials';
   static const String verificationCode = '/verification_code';
-  static const String profilePhoto = '/profile-photo'; // Adicionado
+  static const String profilePhoto = '/profile-photo';
   static const String login = '/login';
   static const String homePage = '/homepage';
   static const String profile = '/profile';
@@ -38,13 +34,16 @@ class AppRoutes {
       initialRouteSelector: (context) {
         bool? isFirstTime = prefs.getBool('isFirstTime');
         bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
-
+        print('AppRoutes: Verificando estado inicial - isFirstTime: $isFirstTime, isLoggedIn: $isLoggedIn');
         if (isLoggedIn) {
+          print('AppRoutes: Usuário logado, redirecionando para /homepage');
           return const HomePage();
         } else {
           if (isFirstTime == null || isFirstTime == true) {
+            print('AppRoutes: Primeira vez, redirecionando para /intro');
             return const Introducao();
           } else {
+            print('AppRoutes: Não é primeira vez, redirecionando para /home');
             return HomeScreen(
               onLoginComplete: () => _handleLogin(context, prefs),
               onRegisterComplete: () => Navigator.pushNamed(context, AppRoutes.register),
@@ -65,6 +64,7 @@ class AppRoutes {
       ),
       birth: (context) {
         final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+        print('AppRoutes: Navegando para /birth com argumentos: $args');
         if (args != null) {
           return BirthScreen(
             name: args['name'] as String? ?? '',
@@ -82,6 +82,7 @@ class AppRoutes {
       },
       credentials: (context) {
         final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+        print('AppRoutes: Navegando para /credentials com argumentos: $args');
         if (args != null) {
           return CredentialsScreen(
             name: args['name'] as String? ?? '',
@@ -94,22 +95,23 @@ class AppRoutes {
       },
       verificationCode: (context) {
         final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+        print('AppRoutes: Navegando para /verification_code com argumentos: $args');
         if (args != null) {
           return VerificationCodeScreen(
             email: args['email'] as String? ?? '',
             name: args['name'] as String? ?? '',
             birth: args['birth'] as String? ?? '',
             password: args['password'] as String? ?? '',
-            verificationCode: args['verificationCode'] as String? ?? '',
             onRegisterComplete: () {
-              // Navegação para a ProfilePhotoScreen agora é tratada dentro da VerificationCodeScreen
+              Navigator.pushNamedAndRemoveUntil(context, AppRoutes.homePage, (route) => false);
             },
           );
         }
         return _ErrorRouteWidget(routeName: verificationCode, args: args);
       },
-      profilePhoto: (context) { // Adicionado
+      profilePhoto: (context) {
         final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+        print('AppRoutes: Navegando para /profile-photo com argumentos: $args');
         if (args != null) {
           return ProfilePhotoScreen(
             name: args['name'] as String? ?? '',
@@ -131,7 +133,7 @@ class AppRoutes {
   }
 
   static Widget _ErrorRouteWidget({String? routeName, dynamic args}) {
-    print("ROTA NÃO ENCONTRADA OU ARGUMENTOS INVÁLIDOS: $routeName com argumentos: $args");
+    print("AppRoutes: Rota não encontrada ou argumentos inválidos: $routeName com argumentos: $args");
     return Scaffold(
       appBar: AppBar(title: const Text('Erro de Rota')),
       body: Center(child: Text('Rota não encontrada ou args inválidos para: $routeName')),
@@ -144,6 +146,7 @@ class AppRoutes {
   }
 
   static Route<dynamic> onUnknownRoute(RouteSettings settings) {
+    print('AppRoutes: Rota desconhecida acessada: ${settings.name}');
     return MaterialPageRoute(
       builder: (context) => Scaffold(
         appBar: AppBar(title: const Text('Rota Desconhecida')),
