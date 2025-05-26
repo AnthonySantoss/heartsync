@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart'; // Verifique o caminho
+import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:heartsync/src/utils/auth_manager.dart';
 import 'package:heartsync/presentation/viewmodels/statistic_viewmodel.dart';
-import 'package:intl/intl.dart'; // Para formatar os dias da semana
+import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class StatisticScreen extends StatefulWidget {
@@ -47,10 +47,9 @@ class _StatisticScreenState extends State<StatisticScreen> {
 
   String _getDayAbbreviation(int dayIndexFromEnd) {
     final DateTime day = DateTime.now().subtract(Duration(days: dayIndexFromEnd));
-    return DateFormat('E', 'pt_BR').format(day);
+    return DateFormat('E', 'pt_BR').format(day).substring(0, 3); // Pega as primeiras 3 letras (Seg, Ter, etc.)
   }
 
-  // Função para determinar o valor de retorno ao sair da tela
   bool _getNavigationResult(StatisticViewModel viewModel) {
     final bool success = viewModel.statisticData != null && viewModel.error == null && viewModel.permissionGranted;
     print('StatisticScreen: Determinando resultado da navegação: $success');
@@ -70,16 +69,14 @@ class _StatisticScreenState extends State<StatisticScreen> {
     }
 
     if (!viewModel.permissionGranted && viewModel.error != null && viewModel.error!.contains("Permissão")) {
-      // Tela para solicitar permissão
       return Scaffold(
-        // Adicionando um AppBar simples para o botão de voltar, mantendo a estética.
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
             icon: Image.asset('lib/assets/images/Back.png', width: 27, color: Colors.white),
             onPressed: () {
-              Navigator.pop(context, false); // Retorna false pois a permissão não foi concedida
+              Navigator.pop(context, false);
             },
           ),
         ),
@@ -105,7 +102,6 @@ class _StatisticScreenState extends State<StatisticScreen> {
                         textStyle: const TextStyle(fontSize: 15)
                     ),
                     onPressed: () {
-                      // loadAllStatisticData no ViewModel deve lidar com a tentativa de permissão
                       if (_userId != null) {
                         viewModel.loadAllStatisticData(_userId!);
                       }
@@ -127,7 +123,6 @@ class _StatisticScreenState extends State<StatisticScreen> {
     }
 
     if (viewModel.error != null) {
-      // Tela de erro geral
       return Scaffold(
         appBar: AppBar(
           backgroundColor: Colors.transparent,
@@ -135,7 +130,7 @@ class _StatisticScreenState extends State<StatisticScreen> {
           leading: IconButton(
             icon: Image.asset('lib/assets/images/Back.png', width: 27, color: Colors.white),
             onPressed: () {
-              Navigator.pop(context, false); // Retorna false devido ao erro
+              Navigator.pop(context, false);
             },
           ),
         ),
@@ -177,7 +172,6 @@ class _StatisticScreenState extends State<StatisticScreen> {
 
     final statisticData = viewModel.statisticData;
     if (statisticData == null) {
-      // Tela de dados nulos
       return Scaffold(
         appBar: AppBar(
           backgroundColor: Colors.transparent,
@@ -185,7 +179,7 @@ class _StatisticScreenState extends State<StatisticScreen> {
           leading: IconButton(
             icon: Image.asset('lib/assets/images/Back.png', width: 27, color: Colors.white),
             onPressed: () {
-              Navigator.pop(context, false); // Retorna false pois não há dados
+              Navigator.pop(context, false);
             },
           ),
         ),
@@ -222,7 +216,7 @@ class _StatisticScreenState extends State<StatisticScreen> {
 
     double maxYGraph = 3.0;
     if (weeklyUsageHours.isNotEmpty) {
-      maxYGraph = weeklyUsageHours.fold(0.0, (max, current) => current > max ? current : max); // Corrigido para evitar erro com lista vazia
+      maxYGraph = weeklyUsageHours.fold(0.0, (max, current) => current > max ? current : max);
       if (maxYGraph < 3.0) {
         maxYGraph = 3.0;
       } else {
@@ -230,15 +224,12 @@ class _StatisticScreenState extends State<StatisticScreen> {
       }
     }
 
-    // Envolve o Scaffold principal com WillPopScope
     return WillPopScope(
       onWillPop: () async {
         Navigator.pop(context, _getNavigationResult(viewModel));
         return false;
       },
       child: Scaffold(
-        // Não há AppBar explícito aqui no seu código original para o estado de sucesso,
-        // o botão de voltar está no corpo.
         body: BackgroundWidget(
           padding: const EdgeInsets.all(0),
           child: SafeArea(
@@ -252,12 +243,11 @@ class _StatisticScreenState extends State<StatisticScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         IconButton(
-                          // MODIFICADO: Chama _getNavigationResult
                           onPressed: () => Navigator.pop(context, _getNavigationResult(viewModel)),
                           icon: Image.asset(
                             'lib/assets/images/Back.png',
                             width: 27,
-                            color: Colors.white, // Adicionado cor para melhor visibilidade no fundo escuro
+                            color: Colors.white,
                           ),
                         ),
                         Stack(
@@ -396,106 +386,97 @@ class _StatisticScreenState extends State<StatisticScreen> {
                           ),
                           const SizedBox(height: 20),
                           Expanded(
-                            child: BarChart(
-                              BarChartData(
-                                alignment: BarChartAlignment.spaceAround,
-                                maxY: maxYGraph,
-                                barTouchData: BarTouchData(
-                                  touchTooltipData: BarTouchTooltipData(
-                                    getTooltipColor: (group) => Colors.grey.shade800, // Ajustado para melhor visibilidade
-                                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                                      String day = _getDayAbbreviation(6 - group.x.toInt());
-                                      return BarTooltipItem(
-                                        '$day\n',
-                                        const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                        ),
-                                        children: <TextSpan>[
-                                          TextSpan(
-                                            text: '${rod.toY.toStringAsFixed(1)} h',
-                                            style: const TextStyle(
-                                              color: Colors.yellowAccent, // Ajustado para melhor visibilidade
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  ),
+                            child: LineChart(
+                              LineChartData(
+                                gridData: FlGridData(
+                                  show: true,
+                                  drawVerticalLine: true,
+                                  getDrawingHorizontalLine: (value) {
+                                    return FlLine(
+                                      color: Colors.white10,
+                                      strokeWidth: 1,
+                                    );
+                                  },
+                                  getDrawingVerticalLine: (value) {
+                                    return FlLine(
+                                      color: Colors.white10,
+                                      strokeWidth: 1,
+                                    );
+                                  },
                                 ),
                                 titlesData: FlTitlesData(
                                   show: true,
-                                  leftTitles: AxisTitles(
-                                    sideTitles: SideTitles(
-                                      showTitles: true,
-                                      reservedSize: 35,
-                                      getTitlesWidget: (value, meta) {
-                                        if (value == 0 && maxYGraph > 0) return const Text(''); // Evita sobreposição do 0h
-                                        // Ajusta o intervalo para não ficar muito poluído
-                                        double interval = (maxYGraph / 4).ceilToDouble();
-                                        if (interval == 0) interval = 1; // Evita divisão por zero ou intervalo zero
-                                        if (value % interval == 0 || value == maxYGraph) {
-                                          return Text('${value.toInt()}h', style: const TextStyle(color: Colors.white70, fontSize: 10));
-                                        }
-                                        return const Text('');
-                                      },
-                                      interval: (maxYGraph / 4).ceilToDouble() == 0 ? 1 : (maxYGraph / 4).ceilToDouble(),
-                                    ),
-                                  ),
                                   bottomTitles: AxisTitles(
                                     sideTitles: SideTitles(
                                       showTitles: true,
-                                      reservedSize: 30,
+                                      reservedSize: 22,
                                       getTitlesWidget: (value, meta) {
-                                        return Padding(
-                                          padding: const EdgeInsets.only(top: 8.0),
-                                          child: Text(_getDayAbbreviation(6 - value.toInt()), style: const TextStyle(color: Colors.white70, fontSize: 10)),
+                                        const style = TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 10,
                                         );
+                                        if (value >= 0 && value <= 6) { // Exibe os 7 dias (0 a 6)
+                                          return Text(_getDayAbbreviation(6 - value.toInt()), style: style);
+                                        }
+                                        return const Text('');
                                       },
                                       interval: 1,
+                                    ),
+                                  ),
+                                  leftTitles: AxisTitles(
+                                    sideTitles: SideTitles(
+                                      showTitles: true,
+                                      reservedSize: 40,
+                                      getTitlesWidget: (value, meta) {
+                                        const style = TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 10,
+                                        );
+                                        if (value == 0.5) {
+                                          return const Text('30m', style: style);
+                                        } else if (value == 1) {
+                                          return const Text('1h', style: style);
+                                        } else if (value == 2) {
+                                          return const Text('2h', style: style);
+                                        } else if (value == 3) {
+                                          return const Text('3h', style: style);
+                                        }
+                                        return const Text('');
+                                      },
+                                      interval: 0.5,
                                     ),
                                   ),
                                   topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                                   rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                                 ),
                                 borderData: FlBorderData(
-                                    show: true,
-                                    border: Border(
-                                      bottom: BorderSide(color: Colors.white24, width: 1),
-                                      left: BorderSide(color: Colors.white24, width: 1),
-                                    )
-                                ),
-                                barGroups: weeklyUsageHours
-                                    .asMap()
-                                    .map((index, hours) => MapEntry(
-                                    index,
-                                    BarChartGroupData(
-                                      x: index,
-                                      barRods: [
-                                        BarChartRodData(
-                                            toY: hours,
-                                            color: const Color(0xFF972F6A),
-                                            width: 18,
-                                            borderRadius: BorderRadius.circular(4)
-                                        ),
-                                      ],
-                                    )))
-                                    .values
-                                    .toList(),
-                                gridData: FlGridData( // Linhas de grade horizontais
                                   show: true,
-                                  drawVerticalLine: false, // Não mostrar linhas verticais
-                                  horizontalInterval: (maxYGraph / 4).ceilToDouble() == 0 ? 1 : (maxYGraph / 4).ceilToDouble(),
-                                  getDrawingHorizontalLine: (value) {
-                                    return FlLine(
-                                      color: Colors.white10, // Cor suave para a grade
-                                      strokeWidth: 0.8,
-                                    );
-                                  },
+                                  border: Border.all(color: Colors.white10, width: 1),
                                 ),
+                                minX: 0,
+                                maxX: 6, // Ajustado para 7 dias (0 a 6)
+                                minY: 0,
+                                maxY: 3,
+                                lineBarsData: [
+                                  // Linha de uso (rosa) baseada em weeklyUsageHours
+                                  LineChartBarData(
+                                    spots: weeklyUsageHours.asMap().entries.map((entry) {
+                                      return FlSpot(entry.key.toDouble(), entry.value.clamp(0, 3)); // Limita valores a 0-3 horas
+                                    }).toList(),
+                                    isCurved: true,
+                                    color: const Color(0xFFB02D78),
+                                    barWidth: 2,
+                                    dotData: const FlDotData(show: false),
+                                    belowBarData: BarAreaData(
+                                      show: true,
+                                      color: const Color(0xFFB02D78).withOpacity(0.3),
+                                      applyCutOffY: true,
+                                      cutOffY: 0,
+                                    ),
+                                    aboveBarData: BarAreaData(show: false),
+                                  ),
+                                ],
+                                lineTouchData: LineTouchData(enabled: false),
                               ),
                             ),
                           ),
@@ -504,98 +485,98 @@ class _StatisticScreenState extends State<StatisticScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween, // Espaça os containers uniformemente
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF210E45),
-                          borderRadius: BorderRadius.circular(20),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF210E45),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Column(
+                              children: [
+                                const Text(
+                                  'Tempo diário definido',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  statisticData['dailyTimeLimit'] ?? 'N/A',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                const Text(
+                                  'Horário limite:',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  statisticData['timeLimitRange'] ?? 'N/A',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                        child: Column(
-                          children: [
-                            const Text(
-                              'Tempo diário definido',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                              ),
+                        const SizedBox(width: 20),
+                        Expanded(
+                          child: Container(
+                            width: 192,
+                            height: 174,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF210E45),
+                              borderRadius: BorderRadius.circular(20),
                             ),
-                            const SizedBox(height: 5),
-                            Text(
-                              statisticData['dailyTimeLimit'] ?? 'N/A',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text(
+                                  'Média semanal',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  statisticData['weeklyAverage'] ?? '0 min',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 10),
-                            const Text(
-                              'Horário limite:',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              statisticData['timeLimitRange'] ?? 'N/A',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                    const SizedBox(width: 20), // Espaço entre os containers
-                    Expanded(
-                      child: Container(
-                        width: 192,
-                        height: 174,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF210E45),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text(
-                              'Média semanal',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              statisticData['weeklyAverage'] ?? '0 min',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                  ),
                   const SizedBox(height: 20),
                 ],
               ),
@@ -606,4 +587,3 @@ class _StatisticScreenState extends State<StatisticScreen> {
     );
   }
 }
-
