@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:heartsync/servico/api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:heartsync/src/utils/auth_manager.dart';
 import 'package:heartsync/servico/StatisticService.dart';
@@ -18,6 +19,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final StatisticService _statisticService = GetIt.instance<StatisticService>();
   final DatabaseHelper _databaseHelper = GetIt.instance<DatabaseHelper>();
+  final ApiService _apiService = GetIt.instance<ApiService>();
 
   User? user;
   String usageTime = '0h00min';
@@ -42,7 +44,6 @@ class _HomePageState extends State<HomePage> {
       });
       print('HomePage: Iniciando carregamento de dados');
 
-      print('HomePage: Verificando se o usuário está logado');
       final isLoggedIn = await AuthManager.isLoggedIn();
       print('HomePage: Resultado de AuthManager.isLoggedIn(): $isLoggedIn');
       if (!isLoggedIn) {
@@ -51,7 +52,6 @@ class _HomePageState extends State<HomePage> {
         return;
       }
 
-      print('HomePage: Obtendo localId do AuthManager');
       final userId = await AuthManager.getLocalId();
       print('HomePage: localId obtido: $userId');
       if (userId == null) {
@@ -60,7 +60,6 @@ class _HomePageState extends State<HomePage> {
         return;
       }
 
-      print('HomePage: Obtendo dados do usuário do banco');
       final users = await _databaseHelper.getUsuarios();
       print('HomePage: Usuários encontrados no banco: $users');
       final userData = users.firstWhere(
@@ -70,28 +69,22 @@ class _HomePageState extends State<HomePage> {
       user = User.fromDbMap(userData);
       print('HomePage: Usuário carregado: ${user!.name}');
 
-      print('HomePage: Obtendo dados estatísticos');
       final stats = await _statisticService.getStatisticData(
         userId,
         DateTime.now().toIso8601String().split('T')[0],
       );
       print('HomePage: Dados estatísticos obtidos: $stats');
 
-      print('HomePage: Obtendo recados');
       final recados = await _databaseHelper.getRecados(userId);
       print('HomePage: Recados obtidos: $recados');
 
-      print('HomePage: Obtendo streakCount');
-      final streak = await _databaseHelper.getStreakCount(userId);
-      print('HomePage: streakCount obtido: $streak');
-
-      print('HomePage: Obtendo dados da roleta');
       final rouletteData = await _databaseHelper.getLatestRoulette(userId);
       print('HomePage: Dados da roleta obtidos: $rouletteData');
 
-      final now = DateTime.now();
-      print('HomePage: Calculando nextRouletteTime');
-      nextRouletteTime = _calculateNextRouletteTime(now);
+      final currentStreak = await _handleStreakLogic(userId, rouletteData);
+      print('HomePage: Streak atual: $currentStreak');
+
+      nextRouletteTime = await _calculateNextRouletteTime(rouletteData);
       print('HomePage: nextRouletteTime calculado: $nextRouletteTime');
 
       setState(() {
@@ -102,7 +95,7 @@ class _HomePageState extends State<HomePage> {
           'time': r['dataHora'],
           'isOther': r['isOther'] == 1,
         }).toList();
-        streakCount = streak;
+        streakCount = currentStreak;
         if (rouletteData != null) {
           lastRouletteActivity = rouletteData['atividade'] ?? 'Cinema 🍿';
         }
@@ -114,7 +107,7 @@ class _HomePageState extends State<HomePage> {
       print('HomePage: StackTrace: $stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar dados: $e')),
+          SnackBar(content: Text('Erro ao carregar dados: ${e.toString()}')),
         );
         setState(() {
           isLoading = false;
@@ -123,11 +116,105 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  String _calculateNextRouletteTime(DateTime now) {
-    final next = now.add(const Duration(hours: 4));
-    final hours = next.hour.toString().padLeft(2, '0');
-    final minutes = next.minute.toString().padLeft(2, '0');
-    return '$hours:$minutes';
+  Future<int> _handleStreakLogic(int userId, Map<String, dynamic>? rouletteData) async {
+    try {
+      int currentStreak = await _databaseHelper.getStreakCount(userId) ?? 0;
+      final lastStreakDate = await _databaseHelper.getLastStreakDate(userId);
+      print('HomePage: Streak atual: $currentStreak, Última data de streak: $lastStreakDate');
+
+      final today = DateTime.now().toLocal();
+      final todayString = today.toIso8601String().split('T')[0];
+
+      dynamic serverStreakData = await _apiService.getStreak(userId);
+      int serverStreak = 0;
+      String? serverLastStreakDate;
+      if (serverStreakData is Map<String, dynamic>) {
+        serverStreak = serverStreakData['streak'] ?? 0;
+        serverLastStreakDate = serverStreakData['lastStreakDate'];
+      }
+      print('HomePage: Streak do servidor: $serverStreak, Última data do servidor: $serverLastStreakDate');
+
+      if (serverStreak > currentStreak) {
+        currentStreak = serverStreak;
+        await _databaseHelper.updateStreakCount(userId, currentStreak, lastStreakDate: serverLastStreakDate);
+        print('HomePage: Streak local atualizado com valor do servidor: $currentStreak');
+      }
+
+      if (rouletteData == null || rouletteData['dataRoleta'] == null) {
+        if (lastStreakDate != null) {
+          final lastDate = DateTime.parse(lastStreakDate).toLocal();
+          final difference = today.difference(lastDate).inDays;
+          if (difference > 1) {
+            print('HomePage: Streak expirado, resetando');
+            await _resetStreak(userId);
+            return 0;
+          }
+        }
+        return currentStreak;
+      }
+
+      final lastRouletteDate = DateTime.parse(rouletteData['dataRoleta']).toLocal();
+      final difference = today.difference(lastRouletteDate).inDays;
+      print('HomePage: Última data de roleta: $lastRouletteDate, Diferença de dias: $difference');
+
+      if (difference == 0) {
+        print('HomePage: Giro realizado hoje, mantendo streak: $currentStreak');
+        return currentStreak;
+      } else if (difference == 1) {
+        print('HomePage: Giro realizado ontem, incrementando streak');
+        currentStreak++;
+        // Corrected line: Pass lastStreakDate as a named argument
+        await _databaseHelper.updateStreakCount(userId, currentStreak, lastStreakDate: todayString);
+        await _apiService.updateStreak(userId, currentStreak, lastStreakDate: todayString); // Fixed here
+        return currentStreak;
+      } else {
+        print('HomePage: Streak expirado, resetando');
+        await _resetStreak(userId);
+        return 0;
+      }
+    } catch (e, stackTrace) {
+      print('HomePage: Erro ao verificar streak: $e');
+      print('HomePage: StackTrace: $stackTrace');
+      return 0;
+    }
+  }
+
+  Future<String> _calculateNextRouletteTime(Map<String, dynamic>? rouletteData) async {
+    try {
+      const defaultDuration = Duration(hours: 4); // Duração padrão do cronômetro: 4 horas
+      if (rouletteData != null && rouletteData['proximaRoleta'] != null) {
+        final nextRoulette = DateTime.parse(rouletteData['proximaRoleta']).toLocal();
+        final now = DateTime.now().toLocal();
+        if (nextRoulette.isAfter(now)) {
+          final remaining = nextRoulette.difference(now);
+          final hours = remaining.inHours.toString().padLeft(2, '0');
+          final minutes = (remaining.inMinutes % 60).toString().padLeft(2, '0');
+          final seconds = (remaining.inSeconds % 60).toString().padLeft(2, '0');
+          return '$hours:$minutes:$seconds';
+        }
+      }
+      final next = DateTime.now().toLocal().add(defaultDuration);
+      final hours = next.hour.toString().padLeft(2, '0');
+      final minutes = next.minute.toString().padLeft(2, '0');
+      return '$hours:$minutes';
+    } catch (e, stackTrace) {
+      print('HomePage: Erro ao calcular nextRouletteTime: $e');
+      print('HomePage: StackTrace: $stackTrace');
+      return '00:00';
+    }
+  }
+
+  Future<void> _resetStreak(int userId) async {
+    try {
+      print('HomePage: Resetando streak para userId: $userId');
+      await _databaseHelper.updateStreakCount(userId, 0, lastStreakDate: null);
+      await _apiService.resetStreak(userId);
+      print('HomePage: Streak resetado com sucesso');
+    } catch (e, stackTrace) {
+      print('HomePage: Erro ao resetar streak: $e');
+      print('HomePage: StackTrace: $stackTrace');
+      throw Exception('Falha ao resetar streak');
+    }
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -238,9 +325,14 @@ class _HomePageState extends State<HomePage> {
               child: CircleAvatar(
                 backgroundColor: Colors.white,
                 backgroundImage: user!.photoUrl != null && user!.photoUrl!.isNotEmpty
-                    ? FileImage(File(user!.photoUrl!))
-                    : const NetworkImage('https://via.placeholder.com/150') as ImageProvider,
-                child: user!.photoUrl == null
+                    ? (user!.photoUrl!.startsWith('http')
+                    ? NetworkImage(user!.photoUrl!)
+                    : FileImage(File(user!.photoUrl!))) as ImageProvider
+                    : const NetworkImage('https://via.placeholder.com/150'),
+                onBackgroundImageError: (exception, stackTrace) {
+                  print('HomePage: Erro ao carregar imagem de perfil: $exception');
+                },
+                child: user!.photoUrl == null || user!.photoUrl!.isEmpty
                     ? const Icon(Icons.person, color: Colors.black)
                     : null,
               ),
@@ -260,7 +352,7 @@ class _HomePageState extends State<HomePage> {
           print('HomePage: Retornou da StatisticScreen com sucesso, recarregando dados...');
           _loadData();
         } else {
-          print('HomePage: Retornou da StatisticScreen, resultado: $result (sem recarregar ou widget desmontado)');
+          print('HomePage: Retornou da StatisticScreen, resultado: $result');
         }
       },
       child: Container(
@@ -349,9 +441,13 @@ class _HomePageState extends State<HomePage> {
       children: [
         Expanded(
           child: GestureDetector(
-            onTap: () {
+            onTap: () async {
               print('HomePage: Navegando para /roulette');
-              Navigator.pushNamed(context, '/roulette');
+              final result = await Navigator.pushNamed(context, '/roulette');
+              if (result == true && mounted) {
+                print('HomePage: Retornou da RouletteScreen com sucesso, recarregando dados...');
+                _loadData();
+              }
             },
             child: Container(
               width: 280,
@@ -410,7 +506,7 @@ class _HomePageState extends State<HomePage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'Ontem',
+                              'Última Atividade',
                               textAlign: TextAlign.left,
                               style: TextStyle(
                                 color: Colors.white,
@@ -471,13 +567,13 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    streakCount.toString(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                      streakCount.toString(),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ],
@@ -546,7 +642,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           Text(
-            time,
+            DateFormat('HH:mm').format(DateTime.parse(time)),
             style: const TextStyle(color: Colors.grey),
           ),
         ],

@@ -22,7 +22,7 @@ class DatabaseHelper {
     final path = join(databasePath, 'heartsync.db');
     return await openDatabase(
       path,
-      version: 3, // Incrementado para a nova migração
+      version: 4, // Incrementado para nova migração
       onCreate: (db, version) async {
         print('DatabaseHelper: Criando tabelas no banco de dados local');
         await db.execute('''
@@ -37,7 +37,8 @@ class DatabaseHelper {
             anniversaryDate TEXT,
             syncDate TEXT,
             updatedAt TEXT,
-            streak INTEGER DEFAULT 0
+            streak INTEGER DEFAULT 0,
+            lastStreakDate TEXT -- Nova coluna adicionada
           )
         ''');
         await db.execute('''
@@ -87,12 +88,14 @@ class DatabaseHelper {
               profileImagePath TEXT,
               anniversaryDate TEXT,
               syncDate TEXT,
-              updatedAt TEXT
+              updatedAt TEXT,
+              streak INTEGER DEFAULT 0,
+              lastStreakDate TEXT
             )
           ''');
           await db.execute('''
-            INSERT INTO usuarios_new (id, nome, email, dataNascimento, senha, temFoto, profileImagePath, anniversaryDate, syncDate, updatedAt)
-            SELECT id, nome, email, dataNascimento, senha, temFoto, profileImagePath, NULL, NULL, NULL
+            INSERT INTO usuarios_new (id, nome, email, dataNascimento, senha, temFoto, profileImagePath, anniversaryDate, syncDate, updatedAt, streak)
+            SELECT id, nome, email, dataNascimento, senha, temFoto, profileImagePath, NULL, NULL, NULL, 0
             FROM usuarios
           ''');
           await db.execute('DROP TABLE usuarios');
@@ -101,6 +104,9 @@ class DatabaseHelper {
         if (oldVersion < 3) {
           await db.execute('ALTER TABLE usuarios ADD COLUMN streak INTEGER DEFAULT 0');
           await db.execute('ALTER TABLE roleta ADD COLUMN blockTime TEXT');
+        }
+        if (oldVersion < 4) {
+          await db.execute('ALTER TABLE usuarios ADD COLUMN lastStreakDate TEXT');
         }
         print('DatabaseHelper: Migração concluída');
       },
@@ -122,6 +128,7 @@ class DatabaseHelper {
     String? anniversaryDate,
     String? syncDate,
     int streak = 0,
+    String? lastStreakDate, // Adicionado para suportar lastStreakDate
   }) async {
     final db = await database;
     return await db.insert('usuarios', {
@@ -134,6 +141,7 @@ class DatabaseHelper {
       'anniversaryDate': anniversaryDate,
       'syncDate': syncDate,
       'streak': streak,
+      'lastStreakDate': lastStreakDate, // Adicionado
     });
   }
 
@@ -155,13 +163,11 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> getUsoCelularUltimaSemana(int userId) async {
     final db = await database;
     final startDate = DateTime.now().subtract(Duration(days: 6)).toIso8601String().split('T')[0];
-    return
-
-      await db.query(
-        'uso_celular',
-        where: 'idUsuario = ? AND dataUso >= ?',
-        whereArgs: [userId, startDate],
-      );
+    return await db.query(
+      'uso_celular',
+      where: 'idUsuario = ? AND dataUso >= ?',
+      whereArgs: [userId, startDate],
+    );
   }
 
   Future<Map<String, dynamic>> getTempoRestante(int userId, String dataUso) async {
@@ -206,6 +212,43 @@ class DatabaseHelper {
     });
   }
 
+  Future<bool> hasUsedRouletteToday(int userId) async {
+    final db = await database;
+    final today = DateTime.now().toIso8601String().split('T')[0];
+    final result = await db.query(
+      'roleta',
+      where: 'idUsuario = ? AND dataRoleta = ?',
+      whereArgs: [userId, today],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+
+  Future<void> updateStreakCount(int userId, int streak, {String? lastStreakDate}) async {
+    final db = await database;
+    await db.update(
+      'usuarios',
+      {
+        'streak': streak,
+        if (lastStreakDate != null) 'lastStreakDate': lastStreakDate,
+      },
+      where: 'id = ?',
+      whereArgs: [userId],
+    );
+  }
+
+  Future<String?> getLastStreakDate(int userId) async {
+    final db = await database;
+    final result = await db.query(
+      'usuarios',
+      columns: ['lastStreakDate'],
+      where: 'id = ?',
+      whereArgs: [userId],
+      limit: 1,
+    );
+    return result.isNotEmpty ? result.first['lastStreakDate'] as String? : null;
+  }
+
   Future<int> getStreakCount(int userId) async {
     final db = await database;
     final result = await db.query(
@@ -216,16 +259,6 @@ class DatabaseHelper {
       limit: 1,
     );
     return result.isNotEmpty ? (result.first['streak'] as int? ?? 0) : 0;
-  }
-
-  Future<void> updateStreakCount(int userId, int streak) async {
-    final db = await database;
-    await db.update(
-      'usuarios',
-      {'streak': streak},
-      where: 'id = ?',
-      whereArgs: [userId],
-    );
   }
 
   Future<List<Map<String, dynamic>>> getRecados(int userId) async {

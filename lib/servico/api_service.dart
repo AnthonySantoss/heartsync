@@ -8,23 +8,26 @@ import 'package:heartsync/data/models/user_model.dart';
 class ApiService {
   final String _baseUrl;
 
-  ApiService({String? baseUrl}) : _baseUrl = baseUrl ?? "http://192.168.0.29:3000";
+  ApiService({String? baseUrl}) : _baseUrl = baseUrl ?? 'http://192.168.0.29:3000';
 
   String getBaseUrl() => _baseUrl;
 
   Exception _handleHttpError(http.Response response, String operation) {
     try {
       final errorBody = jsonDecode(response.body);
-      return Exception(errorBody['error'] ?? 'Erro em $operation: ${response.statusCode} - ${errorBody.toString()}');
+      return Exception(
+          errorBody['error'] ?? 'Erro em $operation: ${response.statusCode} - ${errorBody.toString()}');
     } catch (e) {
-      String responseBodySnippet = response.body.length > 200 ? '${response.body.substring(0, 200)}...' : response.body;
+      String responseBodySnippet =
+      response.body.length > 200 ? '${response.body.substring(0, 200)}...' : response.body;
       return Exception('Erro em $operation (HTTP ${response.statusCode}). Resposta: $responseBodySnippet');
     }
   }
 
   Exception _handleGenericError(dynamic e, String operation) {
     if (e is SocketException) {
-      return Exception('Erro de conexão em $operation. Verifique sua internet ou se o servidor ($_baseUrl) está acessível.');
+      return Exception(
+          'Erro de conexão em $operation. Verifique sua internet ou se o servidor ($_baseUrl) está acessível.');
     } else if (e is http.ClientException) {
       return Exception('Erro de cliente HTTP em $operation: ${e.message}');
     } else if (e is Exception) {
@@ -34,7 +37,7 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> login(String email, String password) async {
-    const String operation = "login";
+    const String operation = 'login';
     try {
       print('ApiService: Iniciando login para email: $email');
       final response = await http.post(
@@ -46,7 +49,9 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body) as Map<String, dynamic>;
-        if (responseData.containsKey('user') && responseData['user'] is Map<String, dynamic> && responseData.containsKey('token')) {
+        if (responseData.containsKey('user') &&
+            responseData['user'] is Map<String, dynamic> &&
+            responseData.containsKey('token')) {
           final userDataFromServer = responseData['user'] as Map<String, dynamic>;
           final serverId = userDataFromServer['_id']?.toString();
           final token = responseData['token'] as String?;
@@ -68,7 +73,7 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> register(Map<String, dynamic> registrationData) async {
-    const String operation = "registro";
+    const String operation = 'registro';
     try {
       print('ApiService: Iniciando registro para email: ${registrationData['email']}');
       final response = await http.post(
@@ -80,7 +85,9 @@ class ApiService {
 
       if (response.statusCode == 201) {
         final responseData = jsonDecode(response.body) as Map<String, dynamic>;
-        if (responseData.containsKey('user') && responseData['user'] is Map<String, dynamic> && responseData.containsKey('token')) {
+        if (responseData.containsKey('user') &&
+            responseData['user'] is Map<String, dynamic> &&
+            responseData.containsKey('token')) {
           final userDataFromServer = responseData['user'] as Map<String, dynamic>;
           final serverId = userDataFromServer['_id']?.toString();
           final token = responseData['token'] as String?;
@@ -102,7 +109,7 @@ class ApiService {
   }
 
   Future<UserModel> getMyProfile() async {
-    const String operation = "buscar perfil";
+    const String operation = 'buscar perfil';
     String? token = await AuthManager.getToken();
     if (token == null) throw Exception('Usuário não autenticado. Token não encontrado para $operation.');
 
@@ -120,7 +127,8 @@ class ApiService {
         if (responseBody is Map<String, dynamic>) {
           return UserModel.fromJson(responseBody);
         } else {
-          throw Exception('Formato inesperado da resposta do perfil. Esperava Map, recebeu ${responseBody.runtimeType}');
+          throw Exception(
+              'Formato inesperado da resposta do perfil. Esperava Map, recebeu ${responseBody.runtimeType}');
         }
       } else {
         throw _handleHttpError(response, operation);
@@ -131,7 +139,7 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> updateUserProfile(Map<String, dynamic> profileData) async {
-    const String operation = "atualizar perfil";
+    const String operation = 'atualizar perfil';
     String? token = await AuthManager.getToken();
     String? serverId = await AuthManager.getServerId();
     if (token == null) throw Exception('Usuário não autenticado para $operation.');
@@ -158,7 +166,7 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> uploadImage(File imageFile) async {
-    const String operation = "upload de imagem";
+    const String operation = 'upload de imagem';
     final url = Uri.parse('$_baseUrl/upload');
     try {
       print('ApiService: Iniciando upload de imagem');
@@ -197,7 +205,7 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> uploadProfilePhoto(String serverId, File imageFile) async {
-    const String operation = "upload foto de perfil";
+    const String operation = 'upload foto de perfil';
     String? token = await AuthManager.getToken();
     if (token == null) {
       throw Exception('Usuário não autenticado. Token não encontrado para $operation.');
@@ -241,7 +249,7 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> sendVerificationCode(String email) async {
-    const String operation = "enviar código de verificação";
+    const String operation = 'enviar código de verificação';
     try {
       print('ApiService: Enviando código de verificação para email: $email');
       final response = await http.post(
@@ -262,7 +270,7 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> verifyCode(String email, String code) async {
-    const String operation = "verificar código";
+    const String operation = 'verificar código';
     try {
       print('ApiService: Verificando código para email: $email, code: $code');
       final response = await http.post(
@@ -283,7 +291,7 @@ class ApiService {
   }
 
   Future<void> deleteAccount() async {
-    const String operation = "deletar conta";
+    const String operation = 'deletar conta';
     String? token = await AuthManager.getToken();
     String? serverId = await AuthManager.getServerId();
     if (token == null) throw Exception('Usuário não autenticado. Token não encontrado para $operation.');
@@ -314,7 +322,7 @@ class ApiService {
     required String blockTime,
     required String proximaRoleta,
   }) async {
-    const String operation = "salvar atividade da roleta";
+    const String operation = 'salvar atividade da roleta';
     String? token = await AuthManager.getToken();
     if (token == null) throw Exception('Usuário não autenticado. Token não encontrado para $operation.');
 
@@ -346,23 +354,54 @@ class ApiService {
     }
   }
 
-  Future<void> updateStreak(int userId, int streak) async {
-    const String operation = "atualizar sequência";
+  Future<void> resetStreak(int userId) async {
+    const String operation = 'resetar sequência';
     String? token = await AuthManager.getToken();
     if (token == null) throw Exception('Usuário não autenticado. Token não encontrado para $operation.');
 
     try {
-      print('ApiService: Atualizando sequência para userId: $userId, streak: $streak');
+      print('ApiService: Resetando sequência para userId: $userId');
       final response = await http.post(
-        Uri.parse('$_baseUrl/roulette/update-streak'),
+        Uri.parse('$_baseUrl/roulette/reset-streak'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
           'userId': userId,
-          'streak': streak,
         }),
+      ).timeout(const Duration(seconds: 30));
+      print('ApiService: Resposta recebida do reset de sequência: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        return;
+      } else {
+        throw _handleHttpError(response, operation);
+      }
+    } catch (e) {
+      throw _handleGenericError(e, operation);
+    }
+  }
+
+  Future<void> updateStreak(int userId, int streak, {String? lastStreakDate}) async {
+    const String operation = 'atualizar sequência';
+    String? token = await AuthManager.getToken();
+    if (token == null) throw Exception('Usuário não autenticado. Token não encontrado para $operation.');
+
+    try {
+      print('ApiService: Atualizando sequência para userId: $userId, streak: $streak');
+      final body = {
+        'userId': userId,
+        'streak': streak,
+        if (lastStreakDate != null) 'lastStreakDate': lastStreakDate,
+      };
+      final response = await http.post(
+        Uri.parse('$_baseUrl/roulette/update-streak'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
       ).timeout(const Duration(seconds: 30));
       print('ApiService: Resposta recebida da atualização de sequência: ${response.statusCode}');
 
@@ -377,7 +416,7 @@ class ApiService {
   }
 
   Future<int> getStreak(int userId) async {
-    const String operation = "recuperar sequência";
+    const String operation = 'recuperar sequência';
     String? token = await AuthManager.getToken();
     if (token == null) throw Exception('Usuário não autenticado. Token não encontrado para $operation.');
 

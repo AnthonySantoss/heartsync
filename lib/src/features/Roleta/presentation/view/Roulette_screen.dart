@@ -55,7 +55,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
   Timer? _timer;
   final StreamController<int> _controller = StreamController<int>();
   String selectedCategory = 'Dentro de Casa';
-  int streak = 0;
+  int streakCount = 0;
   final DatabaseHelper _databaseHelper = GetIt.instance<DatabaseHelper>();
   final ApiService _apiService = GetIt.instance<ApiService>();
 
@@ -78,7 +78,6 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.paused && isTimerRunning) {
       _resetTimer();
     }
@@ -86,12 +85,16 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
 
   Future<void> _loadStreak() async {
     try {
-      final currentStreak = await _databaseHelper.getStreakCount(widget.userId);
+      final streakData = await _apiService.getStreak(widget.userId);
       setState(() {
-        streak = currentStreak;
+        streakCount = streakData; // Diretamente o int retornado
       });
     } catch (e) {
-      print('Erro ao carregar sequência: $e');
+      print('Erro ao carregar streak: $e');
+      final localStreak = await _databaseHelper.getStreakCount(widget.userId);
+      setState(() {
+        streakCount = localStreak;
+      });
     }
   }
 
@@ -141,7 +144,6 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
         setState(() {
           isTimerRunning = false;
         });
-        _incrementStreak();
       }
     });
   }
@@ -156,14 +158,48 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
 
   Future<void> _incrementStreak() async {
     try {
-      final newStreak = streak + 1;
-      await _databaseHelper.updateStreakCount(widget.userId, newStreak);
-      await _apiService.updateStreak(widget.userId, newStreak);
+      final today = DateTime.now().toIso8601String().split('T')[0];
+      final lastStreakDate = await _databaseHelper.getLastStreakDate(widget.userId);
+      int newStreak = streakCount;
+
+      if (lastStreakDate == today) {
+        print('Já girou a roleta hoje.');
+        return;
+      }
+
+      if (lastStreakDate != null) {
+        final lastDate = DateTime.parse(lastStreakDate);
+        final difference = DateTime.now().difference(lastDate).inDays;
+        if (difference == 1) {
+          newStreak++;
+        } else if (difference > 1) {
+          newStreak = 1;
+        }
+      } else {
+        newStreak = 1;
+      }
+
+      await _databaseHelper.updateStreakCount(
+        widget.userId,
+        newStreak,
+        lastStreakDate: today,
+      );
+      await _apiService.updateStreak(widget.userId, newStreak, lastStreakDate: today);
+
       setState(() {
-        streak = newStreak;
+        streakCount = newStreak;
       });
     } catch (e) {
-      print('Erro ao incrementar sequência: $e');
+      print('Erro ao incrementar streak: $e');
+    }
+  }
+
+  Future<bool> _canSpinToday() async {
+    try {
+      return !(await _databaseHelper.hasUsedRouletteToday(widget.userId));
+    } catch (e) {
+      print('Erro ao verificar giro de hoje: $e');
+      return false;
     }
   }
 
@@ -180,10 +216,15 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          title: const Text(
-            'Adicionar Tarefa',
-            style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
+          title: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Adicionar Tarefa',
+                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -223,7 +264,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                   FilteringTextInputFormatter.digitsOnly,
                   _TimeInputFormatter(),
                 ],
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: Colors.white),
                 onChanged: (value) {
                   if (value.length == 5) {
                     newTime = value;
@@ -244,7 +285,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
               ),
               child: const Text(
                 'Cancelar',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
               ),
             ),
             TextButton(
@@ -265,7 +306,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
               ),
               child: const Text(
                 'Adicionar',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -352,7 +393,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
               ),
               child: const Text(
                 'Cancelar',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
               ),
             ),
             TextButton(
@@ -373,7 +414,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
               ),
               child: const Text(
                 'Salvar',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -387,7 +428,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF08050F),
+          backgroundColor: const Color(0xFF08050E),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
@@ -438,7 +479,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
               ),
               child: const Text(
                 'Fechar',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -450,7 +491,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
   Future<void> _saveRouletteActivity() async {
     final now = DateTime.now();
     final dataRoleta = now.toIso8601String().split('T')[0];
-    final proximaRoleta = now.add(const Duration(days: 1)).toIso8601String().split('T')[0];
+    final proximaRoleta = now.add(Duration(days: 1)).toIso8601String().split('T')[0];
     final atividade = activities[selectedIndex].name;
     final blockTime = activities[selectedIndex].blockTime;
 
@@ -469,37 +510,47 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
         blockTime: blockTime,
         proximaRoleta: proximaRoleta,
       );
+      await _incrementStreak();
     } catch (e) {
       print('Erro ao salvar atividade da roleta: $e');
     }
   }
 
-  void spinWheel() {
+  void spinWheel() async {
     if (activities.isEmpty) return;
+
+    if (!(await _canSpinToday())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Você já girou a roleta hoje! Tente novamente amanhã.')),
+      );
+      return;
+    }
+
     setState(() {
       isSpinning = true;
       selectedIndex = Random().nextInt(activities.length);
       _controller.add(selectedIndex);
     });
-    Future.delayed(const Duration(seconds: 3), () {
+
+    Future.delayed(Duration(seconds: 3), () {
       if (mounted) {
         _saveRouletteActivity();
-        _showResultDialog(context);
+        _showResultDialog();
       }
     });
   }
 
-  void _showResultDialog(BuildContext context) {
+  void _showResultDialog() {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF210E45),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
           title: const Text(
-            'Atividade do dia',
+            'Atividade do Dia',
             style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
@@ -508,19 +559,19 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
             children: [
               Text(
                 activities[selectedIndex].name,
-                style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w600),
+                style: TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               Text(
-                'Tempo de bloqueio',
-                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
+                'Tempo de Bloqueio',
+                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               Text(
                 _formatDisplayTime(activities[selectedIndex].blockTime),
-                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
+                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -528,32 +579,25 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
           actions: [
             Center(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pop();
-                      setState(() {
-                        isSpinning = true;
-                        selectedIndex = 0;
-                        _controller.add(selectedIndex);
-                        spinWheel();
-                      });
+                      spinWheel();
                     },
                     style: TextButton.styleFrom(
                       backgroundColor: const Color(0xFF4D3192),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                     ),
-                    child: const Text(
+                    child: Text(
                       'Girar Novamente',
                       style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pop();
@@ -564,9 +608,9 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                     ),
-                    child: const Text(
+                    child: Text(
                       'Iniciar Tarefa',
                       style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
@@ -591,18 +635,18 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
   Widget build(BuildContext context) {
     return Scaffold(
       body: BackgroundWidget(
-        padding: const EdgeInsets.all(0),
+        padding: EdgeInsets.all(0),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.only(top: 0, left: 20, right: 20),
+                padding: EdgeInsets.only(top: 0, left: 20, right: 20),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () => Navigator.pop(context, true),
                       icon: Image.asset(
                         'lib/assets/images/Back.png',
                         width: 27,
@@ -620,34 +664,35 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                               height: 31,
                               color: Colors.white,
                             ),
-                            const SizedBox(width: 8),
+                            SizedBox(width: 8),
                             Text(
-                              streak.toString(),
-                              style: const TextStyle(
+                              streakCount.toString(),
+                              style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ],
-                        )
+                        ),
                       ],
                     ),
                     GestureDetector(
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                          MaterialPageRoute(builder: (context) => ProfileScreen()),
                         );
                       },
                       child: CircleAvatar(
                         radius: 20,
-                        backgroundColor: const Color(0xFFDBDBDB),
-                        backgroundImage: widget.imageUrl != null
-                            ? NetworkImage(widget.imageUrl!)
-                            : null,
+                        backgroundColor: Color(0xFFDBDBDB),
+                        backgroundImage: widget.imageUrl != null ? NetworkImage(widget.imageUrl!) : null,
+                        onBackgroundImageError: (exception, stackTrace) {
+                          print('Erro ao carregar imagem de perfil: $exception');
+                        },
                         child: widget.imageUrl == null
-                            ? const Icon(
+                            ? Icon(
                           Icons.person,
                           size: 35,
                           color: Colors.white,
@@ -658,21 +703,20 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
               Center(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: EdgeInsets.symmetric(horizontal: 20),
                   child: Container(
                     width: 286,
                     height: 50,
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+                    padding: EdgeInsets.symmetric(vertical: 10, horizontal: 15),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF311469),
+                      color: Color(0xFF311469),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.max,
                       children: [
                         Expanded(
                           child: DropdownButton<String>(
@@ -680,11 +724,9 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                             onChanged: (String? newValue) {
                               setState(() {
                                 selectedCategory = newValue!;
-                                if (selectedCategory == 'Fora de Casa') {
-                                  activities = List.from(outdoorActivities);
-                                } else {
-                                  activities = List.from(widget.initialActivities);
-                                }
+                                activities = selectedCategory == 'Fora de Casa'
+                                    ? List.from(outdoorActivities)
+                                    : List.from(widget.initialActivities);
                               });
                             },
                             items: <String>['Dentro de Casa', 'Fora de Casa']
@@ -696,23 +738,24 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                                   children: [
                                     Text(
                                       value,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         color: Colors.white,
                                         fontSize: 16,
                                       ),
                                     ),
-                                    const SizedBox(width: 5),
-                                    if (value == 'Dentro de Casa')
-                                      const Icon(Icons.home, color: Colors.white, size: 16)
-                                    else
-                                      const Icon(Icons.directions_walk, color: Colors.white, size: 16),
+                                    SizedBox(width: 5),
+                                    Icon(
+                                      value == 'Dentro de Casa' ? Icons.home : Icons.directions_walk,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
                                   ],
                                 ),
                               );
                             }).toList(),
-                            icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
-                            underline: const SizedBox(),
-                            dropdownColor: const Color(0xFF130B26),
+                            icon: Icon(Icons.arrow_drop_down, color: Colors.white),
+                            underline: SizedBox(),
+                            dropdownColor: Color(0xFF130B26),
                             borderRadius: BorderRadius.circular(20),
                             isExpanded: true,
                           ),
@@ -722,9 +765,9 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -736,9 +779,9 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                           height: 50,
                           child: FloatingActionButton(
                             onPressed: addActivity,
-                            backgroundColor: const Color(0xFF210E45),
-                            shape: const CircleBorder(),
-                            child: const Icon(Icons.add, color: Colors.white),
+                            backgroundColor: Color(0xFF210E45),
+                            shape: CircleBorder(),
+                            child: Icon(Icons.add, color: Colors.white),
                           ),
                         ),
                         SizedBox(
@@ -746,18 +789,18 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                           height: 50,
                           child: Container(
                             decoration: BoxDecoration(
-                              color: const Color(0xFF210E45),
+                              color: Color(0xFF210E45),
                               shape: BoxShape.circle,
                             ),
                             child: IconButton(
-                              icon: const Icon(Icons.more_vert, color: Colors.white),
+                              icon: Icon(Icons.more_vert, color: Colors.white),
                               onPressed: editActivityList,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 0),
+                    SizedBox(height: 20),
                     Center(
                       child: Container(
                         height: 419,
@@ -765,7 +808,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: const Color(0xFF7D48FE),
+                            color: Color(0xFF7D48FE),
                             width: 5,
                           ),
                         ),
@@ -778,9 +821,9 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                                 FortuneWheel(
                                   selected: _controller.stream,
                                   animateFirst: false,
-                                  duration: const Duration(seconds: 3),
+                                  duration: Duration(seconds: 3),
                                   indicators: [
-                                    const FortuneIndicator(
+                                    FortuneIndicator(
                                       alignment: Alignment.topCenter,
                                       child: TriangleIndicator(
                                         width: 30,
@@ -793,7 +836,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                                     return FortuneItem(
                                       child: Text(
                                         activity.name,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           color: Colors.white,
                                           fontSize: 16,
                                           fontWeight: FontWeight.bold,
@@ -801,9 +844,9 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                                       ),
                                       style: FortuneItemStyle(
                                         color: activities.indexOf(activity) % 2 == 0
-                                            ? const Color(0xFF08050E)
-                                            : const Color(0xFF08050E),
-                                        borderColor: const Color(0xFF4D3192),
+                                            ? Color(0xFF08050E)
+                                            : Color(0xFF08050E),
+                                        borderColor: Color(0xFF4D3192),
                                         borderWidth: 5,
                                       ),
                                     );
@@ -817,7 +860,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                                 Container(
                                   width: 52,
                                   height: 52,
-                                  decoration: const BoxDecoration(
+                                  decoration: BoxDecoration(
                                     color: Color(0xFF4D3192),
                                     shape: BoxShape.circle,
                                   ),
@@ -831,20 +874,20 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
               Center(
                 child: Visibility(
                   visible: !isSpinning,
                   child: ElevatedButton(
                     onPressed: isTimerRunning ? null : spinWheel,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4D3192),
-                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                      backgroundColor: Color(0xFF4D3192),
+                      padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
                       ),
                     ),
-                    child: const Text(
+                    child: Text(
                       'Girar',
                       style: TextStyle(
                         color: Colors.white,
@@ -855,7 +898,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
               if (isTimerRunning)
                 Center(
                   child: Container(
@@ -863,12 +906,12 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                     height: 150,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF7D48FE), width: 5),
+                      border: Border.all(color: Color(0xFF7D48FE), width: 5),
                     ),
                     child: Center(
                       child: Text(
                         _formatTimer(timerSeconds),
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
@@ -877,19 +920,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                     ),
                   ),
                 ),
-              const SizedBox(height: 20),
-              Center(
-                child: Text(
-                  selectedIndex == 0 && !isSpinning ? '' : '',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
             ],
           ),
         ),
