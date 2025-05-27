@@ -52,8 +52,9 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
   bool isSpinning = false;
   bool isTimerRunning = false;
   int timerSeconds = 0;
+  int initialTimerSeconds = 0; // To track the initial duration for progress
   Timer? _timer;
-  final StreamController<int> _controller = StreamController<int>();
+  final StreamController<int> _controller = StreamController<int>.broadcast();
   String selectedCategory = 'Dentro de Casa';
   int streakCount = 0;
   final DatabaseHelper _databaseHelper = GetIt.instance<DatabaseHelper>();
@@ -78,8 +79,8 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused && isTimerRunning) {
-      _resetTimer();
+    if (state == AppLifecycleState.paused) {
+      _resetTimer(); // Reinicia o cronômetro quando o aplicativo é pausado
     }
   }
 
@@ -87,7 +88,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
     try {
       final streakData = await _apiService.getStreak(widget.userId);
       setState(() {
-        streakCount = streakData; // Diretamente o int retornado
+        streakCount = streakData;
       });
     } catch (e) {
       print('Erro ao carregar streak: $e');
@@ -129,6 +130,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
     final hours = int.parse(parts[0]);
     final minutes = int.parse(parts[1]);
     timerSeconds = hours * 3600 + minutes * 60;
+    initialTimerSeconds = timerSeconds; // Store initial duration
 
     setState(() {
       isTimerRunning = true;
@@ -153,19 +155,20 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
     setState(() {
       isTimerRunning = false;
       timerSeconds = 0;
+      initialTimerSeconds = 0;
     });
   }
 
   Future<void> _incrementStreak() async {
     try {
       final today = DateTime.now().toIso8601String().split('T')[0];
-      final lastStreakDate = await _databaseHelper.getLastStreakDate(widget.userId);
-      int newStreak = streakCount;
-
-      if (lastStreakDate == today) {
-        print('Já girou a roleta hoje.');
+      if (await _databaseHelper.hasUsedRouletteToday(widget.userId)) {
+        print('Já contabilizou streak hoje.');
         return;
       }
+
+      final lastStreakDate = await _databaseHelper.getLastStreakDate(widget.userId);
+      int newStreak = streakCount;
 
       if (lastStreakDate != null) {
         final lastDate = DateTime.parse(lastStreakDate);
@@ -194,16 +197,139 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
     }
   }
 
-  Future<bool> _canSpinToday() async {
+  Future<void> _saveRouletteActivity() async {
+    final now = DateTime.now();
+    final dataRoleta = now.toIso8601String().split('T')[0];
+    final proximaRoleta = now.add(Duration(days: 1)).toIso8601String().split('T')[0];
+    final atividade = activities[selectedIndex].name;
+    final blockTime = activities[selectedIndex].blockTime;
+
     try {
-      return !(await _databaseHelper.hasUsedRouletteToday(widget.userId));
+      await _databaseHelper.insertRoulette(
+        idUsuario: widget.userId,
+        dataRoleta: dataRoleta,
+        atividade: atividade,
+        blockTime: blockTime,
+        proximaRoleta: proximaRoleta,
+      );
+      await _apiService.saveRouletteActivity(
+        userId: widget.userId,
+        dataRoleta: dataRoleta,
+        atividade: atividade,
+        blockTime: blockTime,
+        proximaRoleta: proximaRoleta,
+      );
+      await _incrementStreak();
     } catch (e) {
-      print('Erro ao verificar giro de hoje: $e');
-      return false;
+      print('Erro ao salvar atividade da roleta: $e');
     }
   }
 
+  void spinWheel() async {
+    if (activities.isEmpty) return;
+
+    setState(() {
+      isSpinning = true;
+      selectedIndex = Random().nextInt(activities.length);
+      _controller.add(selectedIndex);
+    });
+
+    Future.delayed(Duration(seconds: 3), () {
+      if (mounted) {
+        _saveRouletteActivity();
+        _showResultDialog();
+      }
+    });
+  }
+
+  void _showResultDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF210E45),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Atividade do Dia',
+            style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                activities[selectedIndex].name,
+                style: TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 10),
+              Text(
+                'Tempo de Bloqueio',
+                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 10),
+              Text(
+                _formatDisplayTime(activities[selectedIndex].blockTime),
+                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: [
+            Center(
+              child: Column(
+                children: [
+                  TextButton(
+                    onPressed: isTimerRunning
+                        ? null
+                        : () {
+                      Navigator.of(context).pop();
+                      spinWheel();
+                    },
+                    style: TextButton.styleFrom(
+                      backgroundColor: const Color(0xFF4D3192),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    ),
+                    child: Text(
+                      'Girar Novamente',
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _startTimer(activities[selectedIndex].blockTime);
+                    },
+                    style: TextButton.styleFrom(
+                      backgroundColor: const Color(0xFF4D3192),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    ),
+                    child: Text(
+                      'Iniciar Tarefa',
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void addActivity() {
+    if (isTimerRunning) return; // Disable adding activity when timer is running
     showDialog(
       context: context,
       builder: (context) {
@@ -316,6 +442,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
   }
 
   void editActivity(int index) {
+    if (isTimerRunning) return; // Disable editing activity when timer is running
     String editName = activities[index].name;
     String editTime = activities[index].blockTime;
     final timeController = TextEditingController(text: editTime);
@@ -424,6 +551,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
   }
 
   void editActivityList() {
+    if (isTimerRunning) return; // Disable editing list when timer is running
     showDialog(
       context: context,
       builder: (context) {
@@ -457,7 +585,9 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                     ),
                     trailing: IconButton(
                       icon: const Icon(Icons.edit, color: Colors.white, size: 20),
-                      onPressed: () {
+                      onPressed: isTimerRunning
+                          ? null
+                          : () {
                         Navigator.pop(context);
                         editActivity(index);
                       },
@@ -488,142 +618,6 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
     );
   }
 
-  Future<void> _saveRouletteActivity() async {
-    final now = DateTime.now();
-    final dataRoleta = now.toIso8601String().split('T')[0];
-    final proximaRoleta = now.add(Duration(days: 1)).toIso8601String().split('T')[0];
-    final atividade = activities[selectedIndex].name;
-    final blockTime = activities[selectedIndex].blockTime;
-
-    try {
-      await _databaseHelper.insertRoulette(
-        idUsuario: widget.userId,
-        dataRoleta: dataRoleta,
-        atividade: atividade,
-        blockTime: blockTime,
-        proximaRoleta: proximaRoleta,
-      );
-      await _apiService.saveRouletteActivity(
-        userId: widget.userId,
-        dataRoleta: dataRoleta,
-        atividade: atividade,
-        blockTime: blockTime,
-        proximaRoleta: proximaRoleta,
-      );
-      await _incrementStreak();
-    } catch (e) {
-      print('Erro ao salvar atividade da roleta: $e');
-    }
-  }
-
-  void spinWheel() async {
-    if (activities.isEmpty) return;
-
-    if (!(await _canSpinToday())) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Você já girou a roleta hoje! Tente novamente amanhã.')),
-      );
-      return;
-    }
-
-    setState(() {
-      isSpinning = true;
-      selectedIndex = Random().nextInt(activities.length);
-      _controller.add(selectedIndex);
-    });
-
-    Future.delayed(Duration(seconds: 3), () {
-      if (mounted) {
-        _saveRouletteActivity();
-        _showResultDialog();
-      }
-    });
-  }
-
-  void _showResultDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF210E45),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text(
-            'Atividade do Dia',
-            style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                activities[selectedIndex].name,
-                style: TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 10),
-              Text(
-                'Tempo de Bloqueio',
-                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 10),
-              Text(
-                _formatDisplayTime(activities[selectedIndex].blockTime),
-                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-          actions: [
-            Center(
-              child: Column(
-                children: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      spinWheel();
-                    },
-                    style: TextButton.styleFrom(
-                      backgroundColor: const Color(0xFF4D3192),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    ),
-                    child: Text(
-                      'Girar Novamente',
-                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      _startTimer(activities[selectedIndex].blockTime);
-                    },
-                    style: TextButton.styleFrom(
-                      backgroundColor: const Color(0xFF4D3192),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    ),
-                    child: Text(
-                      'Iniciar Tarefa',
-                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   String _formatTimer(int seconds) {
     final hours = seconds ~/ 3600;
     final minutes = (seconds % 3600) ~/ 60;
@@ -646,7 +640,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(
-                      onPressed: () => Navigator.pop(context, true),
+                      onPressed: isTimerRunning ? null : () => Navigator.pop(context, true),
                       icon: Image.asset(
                         'lib/assets/images/Back.png',
                         width: 27,
@@ -678,7 +672,9 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                       ],
                     ),
                     GestureDetector(
-                      onTap: () {
+                      onTap: isTimerRunning
+                          ? null
+                          : () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(builder: (context) => ProfileScreen()),
@@ -721,7 +717,9 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                         Expanded(
                           child: DropdownButton<String>(
                             value: selectedCategory,
-                            onChanged: (String? newValue) {
+                            onChanged: isTimerRunning
+                                ? null
+                                : (String? newValue) {
                               setState(() {
                                 selectedCategory = newValue!;
                                 activities = selectedCategory == 'Fora de Casa'
@@ -771,34 +769,37 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        SizedBox(
-                          width: 50,
-                          height: 50,
-                          child: FloatingActionButton(
-                            onPressed: addActivity,
-                            backgroundColor: Color(0xFF210E45),
-                            shape: CircleBorder(),
-                            child: Icon(Icons.add, color: Colors.white),
-                          ),
-                        ),
-                        SizedBox(
-                          width: 50,
-                          height: 50,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Color(0xFF210E45),
-                              shape: BoxShape.circle,
-                            ),
-                            child: IconButton(
-                              icon: Icon(Icons.more_vert, color: Colors.white),
-                              onPressed: editActivityList,
+                    Opacity(
+                      opacity: isTimerRunning ? 0.5 : 1.0,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          SizedBox(
+                            width: 50,
+                            height: 50,
+                            child: FloatingActionButton(
+                              onPressed: isTimerRunning ? null : addActivity,
+                              backgroundColor: Color(0xFF210E45),
+                              shape: CircleBorder(),
+                              child: Icon(Icons.add, color: Colors.white),
                             ),
                           ),
-                        ),
-                      ],
+                          SizedBox(
+                            width: 50,
+                            height: 50,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Color(0xFF210E45),
+                                shape: BoxShape.circle,
+                              ),
+                              child: IconButton(
+                                icon: Icon(Icons.more_vert, color: Colors.white),
+                                onPressed: isTimerRunning ? null : editActivityList,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     SizedBox(height: 20),
                     Center(
@@ -807,55 +808,59 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
                         width: 419,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Color(0xFF7D48FE),
-                            width: 5,
-                          ),
                         ),
                         child: Center(
-                          child: Container(
+                          child: isTimerRunning
+                              ? CircularProgressTimer(
+                            timerSeconds: timerSeconds,
+                            initialTimerSeconds: initialTimerSeconds,
+                          )
+                              : Container(
                             height: 405,
                             child: Stack(
                               alignment: Alignment.center,
                               children: [
-                                FortuneWheel(
-                                  selected: _controller.stream,
-                                  animateFirst: false,
-                                  duration: Duration(seconds: 3),
-                                  indicators: [
-                                    FortuneIndicator(
-                                      alignment: Alignment.topCenter,
-                                      child: TriangleIndicator(
-                                        width: 30,
-                                        height: 40,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ],
-                                  items: activities.map((activity) {
-                                    return FortuneItem(
-                                      child: Text(
-                                        activity.name,
-                                        style: TextStyle(
+                                Opacity(
+                                  opacity: isTimerRunning ? 0.5 : 1.0,
+                                  child: FortuneWheel(
+                                    selected: _controller.stream,
+                                    animateFirst: false,
+                                    duration: Duration(seconds: 3),
+                                    indicators: [
+                                      FortuneIndicator(
+                                        alignment: Alignment.topCenter,
+                                        child: TriangleIndicator(
+                                          width: 30,
+                                          height: 40,
                                           color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                      style: FortuneItemStyle(
-                                        color: activities.indexOf(activity) % 2 == 0
-                                            ? Color(0xFF08050E)
-                                            : Color(0xFF08050E),
-                                        borderColor: Color(0xFF4D3192),
-                                        borderWidth: 5,
-                                      ),
-                                    );
-                                  }).toList(),
-                                  onAnimationEnd: () {
-                                    setState(() {
-                                      isSpinning = false;
-                                    });
-                                  },
+                                    ],
+                                    items: activities.map((activity) {
+                                      return FortuneItem(
+                                        child: Text(
+                                          activity.name,
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        style: FortuneItemStyle(
+                                          color: activities.indexOf(activity) % 2 == 0
+                                              ? Color(0xFF08050E)
+                                              : Color(0xFF08050E),
+                                          borderColor: Color(0xFF4D3192),
+                                          borderWidth: 5,
+                                        ),
+                                      );
+                                    }).toList(),
+                                    onAnimationEnd: () {
+                                      setState(() {
+                                        isSpinning = false;
+                                      });
+                                    },
+                                  ),
                                 ),
                                 Container(
                                   width: 52,
@@ -876,50 +881,31 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
               ),
               SizedBox(height: 20),
               Center(
-                child: Visibility(
-                  visible: !isSpinning,
-                  child: ElevatedButton(
-                    onPressed: isTimerRunning ? null : spinWheel,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF4D3192),
-                      padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
+                child: Opacity(
+                  opacity: isTimerRunning ? 0.5 : 1.0,
+                  child: Visibility(
+                    visible: !isSpinning,
+                    child: ElevatedButton(
+                      onPressed: isTimerRunning ? null : spinWheel,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFF4D3192),
+                        padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
                       ),
-                    ),
-                    child: Text(
-                      'Girar',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(height: 20),
-              if (isTimerRunning)
-                Center(
-                  child: Container(
-                    width: 150,
-                    height: 150,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Color(0xFF7D48FE), width: 5),
-                    ),
-                    child: Center(
                       child: Text(
-                        _formatTimer(timerSeconds),
+                        'Girar',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 24,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
                   ),
                 ),
+              ),
               SizedBox(height: 20),
             ],
           ),
@@ -948,6 +934,53 @@ class _TimeInputFormatter extends TextInputFormatter {
     return TextEditingValue(
       text: text,
       selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+}
+
+class CircularProgressTimer extends StatelessWidget {
+  final int timerSeconds;
+  final int initialTimerSeconds;
+
+  const CircularProgressTimer({
+    super.key,
+    required this.timerSeconds,
+    required this.initialTimerSeconds,
+  });
+
+  String _formatTimer(int seconds) {
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final secs = seconds % 60;
+    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // Círculo de progresso na borda
+        SizedBox(
+          width: 350,
+          height: 350,
+          child: CircularProgressIndicator(
+            value: timerSeconds / initialTimerSeconds,
+            backgroundColor: Colors.transparent,
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF7D48FE)),
+            strokeWidth: 5,
+          ),
+        ),
+        // Texto no centro
+        Text(
+          _formatTimer(timerSeconds),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
     );
   }
 }
