@@ -1,5 +1,6 @@
 import 'package:get_it/get_it.dart';
 import 'package:heartsync/data/datasources/database_helper.dart';
+import 'package:heartsync/servico/api_service.dart';
 import 'package:heartsync/servico/device_usage.dart'; // Assume que DeviceUsageService e AppUsageInfo estão aqui
 import 'package:heartsync/data/repositories/usage_repository_impl.dart';
 import 'package:heartsync/domain/usecases/register_user_use_case.dart';
@@ -17,6 +18,7 @@ Future<void> init() async {
     // já são chamados no main.dart para garantir a inicialização.
     // GetIt registrará a instância única.
     sl.registerLazySingleton<DatabaseHelper>(() => DatabaseHelper.instance);
+    sl.registerSingleton<ApiService>(ApiService());
 
     // Data Sources (nenhum explicitamente diferente do DeviceUsageService por enquanto)
     // Se DeviceUsageService fosse um "DataSource" formal, seria registrado aqui.

@@ -1,18 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/ProfilePhotoScreen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:heartsync/src/utils/auth_manager.dart';
+
+// Rotas do aplicativo
 import 'package:heartsync/Intro_screen.dart';
 import 'package:heartsync/src/features/home/presentation/view/Home_screen.dart';
 import 'package:heartsync/src/features/login/presentation/view/Login_screen.dart';
-import 'package:heartsync/src/features/Menu/presentation/view/Home_page_screen.dart';
 import 'package:heartsync/src/features/login/presentation/view/Profile_screen.dart';
+import 'package:heartsync/src/features/Menu/presentation/view/Home_page_screen.dart';
 import 'package:heartsync/src/features/Menu/presentation/view/statistic_screen.dart';
-import 'package:heartsync/src/features/Roleta/presentation/view/Roulette_screen.dart';
-import 'package:heartsync/src/features/Registro/presentation/view/Registration_screen.dart';
 import 'package:heartsync/src/features/Registro/presentation/view/Birth_screen.dart';
 import 'package:heartsync/src/features/Registro/presentation/view/Credentials_screen.dart';
+import 'package:heartsync/src/features/Registro/presentation/view/ProfilePhotoScreen.dart';
+import 'package:heartsync/src/features/Registro/presentation/view/Registration_screen.dart';
 import 'package:heartsync/src/features/Registro/presentation/view/verification_code_screen.dart';
+import 'package:heartsync/src/features/Roleta/presentation/view/Roulette_screen.dart';
+
+// Dependências e serviços
+import 'package:get_it/get_it.dart';
+import 'package:heartsync/servico/api_service.dart';
+import 'package:heartsync/src/utils/auth_manager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AppRoutes {
   static const String initialRouteSelector = '/';
@@ -128,15 +134,65 @@ class AppRoutes {
       homePage: (context) => const HomePage(),
       profile: (context) => const ProfileScreen(),
       statistics: (context) => const StatisticScreen(),
-      roulette: (context) => const RouletteScreen(),
+      roulette: (context) => _buildRouletteScreen(),
     };
+  }
+
+  // Função auxiliar para construir a tela de roleta com dados assíncronos
+  static Widget _buildRouletteScreen() {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _fetchRouletteData(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError || !snapshot.hasData) {
+          print('AppRoutes: Erro ao carregar dados para /roulette: ${snapshot.error}');
+          return _ErrorRouteWidget(
+            routeName: roulette,
+            args: {'error': snapshot.error?.toString() ?? 'Dados não disponíveis'},
+          );
+        }
+
+        final data = snapshot.data!;
+        return RouletteScreen(
+          userId: data['userId'] as int,
+          imageUrl: data['imageUrl'] as String?,
+        );
+      },
+    );
+  }
+
+  // Função para buscar userId e imageUrl de forma assíncrona
+  static Future<Map<String, dynamic>> _fetchRouletteData() async {
+    try {
+      final userIdStr = await AuthManager.getServerId();
+      final userId = int.tryParse(userIdStr ?? '') ?? 0;
+      if (userId == 0) {
+        print('AppRoutes: userId inválido para /roulette');
+        throw Exception('userId inválido: $userIdStr');
+      }
+
+      final apiService = GetIt.instance<ApiService>();
+      final profile = await apiService.getMyProfile();
+      print('AppRoutes: Perfil carregado - photoUrl: ${profile.photoUrl}');
+      return {
+        'userId': userId,
+        'imageUrl': profile.photoUrl ?? '',
+      };
+    } catch (e) {
+      print('AppRoutes: Erro ao buscar dados para /roulette: $e');
+      throw e; // Repropaga a exceção para o FutureBuilder
+    }
   }
 
   static Widget _ErrorRouteWidget({String? routeName, dynamic args}) {
     print("AppRoutes: Rota não encontrada ou argumentos inválidos: $routeName com argumentos: $args");
     return Scaffold(
       appBar: AppBar(title: const Text('Erro de Rota')),
-      body: Center(child: Text('Rota não encontrada ou args inválidos para: $routeName')),
+      body: Center(child: Text('Rota não encontrada ou args inválidos para: $routeName\nErro: ${args['error'] ?? 'Desconhecido'}')),
     );
   }
 

@@ -22,7 +22,7 @@ class DatabaseHelper {
     final path = join(databasePath, 'heartsync.db');
     return await openDatabase(
       path,
-      version: 2,
+      version: 3, // Incrementado para a nova migração
       onCreate: (db, version) async {
         print('DatabaseHelper: Criando tabelas no banco de dados local');
         await db.execute('''
@@ -36,7 +36,8 @@ class DatabaseHelper {
             profileImagePath TEXT,
             anniversaryDate TEXT,
             syncDate TEXT,
-            updatedAt TEXT
+            updatedAt TEXT,
+            streak INTEGER DEFAULT 0
           )
         ''');
         await db.execute('''
@@ -65,6 +66,7 @@ class DatabaseHelper {
             idUsuario INTEGER,
             dataRoleta TEXT,
             atividade TEXT,
+            blockTime TEXT,
             proximaRoleta TEXT,
             FOREIGN KEY (idUsuario) REFERENCES usuarios(id)
           )
@@ -96,6 +98,10 @@ class DatabaseHelper {
           await db.execute('DROP TABLE usuarios');
           await db.execute('ALTER TABLE usuarios_new RENAME TO usuarios');
         }
+        if (oldVersion < 3) {
+          await db.execute('ALTER TABLE usuarios ADD COLUMN streak INTEGER DEFAULT 0');
+          await db.execute('ALTER TABLE roleta ADD COLUMN blockTime TEXT');
+        }
         print('DatabaseHelper: Migração concluída');
       },
     );
@@ -115,6 +121,7 @@ class DatabaseHelper {
     String? profileImagePath,
     String? anniversaryDate,
     String? syncDate,
+    int streak = 0,
   }) async {
     final db = await database;
     return await db.insert('usuarios', {
@@ -126,6 +133,7 @@ class DatabaseHelper {
       'profileImagePath': profileImagePath,
       'anniversaryDate': anniversaryDate,
       'syncDate': syncDate,
+      'streak': streak,
     });
   }
 
@@ -147,11 +155,13 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> getUsoCelularUltimaSemana(int userId) async {
     final db = await database;
     final startDate = DateTime.now().subtract(Duration(days: 6)).toIso8601String().split('T')[0];
-    return await db.query(
-      'uso_celular',
-      where: 'idUsuario = ? AND dataUso >= ?',
-      whereArgs: [userId, startDate],
-    );
+    return
+
+      await db.query(
+        'uso_celular',
+        where: 'idUsuario = ? AND dataUso >= ?',
+        whereArgs: [userId, startDate],
+      );
   }
 
   Future<Map<String, dynamic>> getTempoRestante(int userId, String dataUso) async {
@@ -197,19 +207,25 @@ class DatabaseHelper {
   }
 
   Future<int> getStreakCount(int userId) async {
-    final usoSemanal = await getUsoCelularUltimaSemana(userId);
-    int streak = 0;
-    final today = DateTime.now();
-    for (int i = 0; i < 7; i++) {
-      final date = today.subtract(Duration(days: i)).toIso8601String().split('T')[0];
-      final hasData = usoSemanal.any((u) => u['dataUso'] == date);
-      if (hasData) {
-        streak++;
-      } else {
-        break;
-      }
-    }
-    return streak;
+    final db = await database;
+    final result = await db.query(
+      'usuarios',
+      columns: ['streak'],
+      where: 'id = ?',
+      whereArgs: [userId],
+      limit: 1,
+    );
+    return result.isNotEmpty ? (result.first['streak'] as int? ?? 0) : 0;
+  }
+
+  Future<void> updateStreakCount(int userId, int streak) async {
+    final db = await database;
+    await db.update(
+      'usuarios',
+      {'streak': streak},
+      where: 'id = ?',
+      whereArgs: [userId],
+    );
   }
 
   Future<List<Map<String, dynamic>>> getRecados(int userId) async {
@@ -253,6 +269,7 @@ class DatabaseHelper {
     required int idUsuario,
     required String dataRoleta,
     required String atividade,
+    required String blockTime,
     required String proximaRoleta,
   }) async {
     final db = await database;
@@ -260,6 +277,7 @@ class DatabaseHelper {
       'idUsuario': idUsuario,
       'dataRoleta': dataRoleta,
       'atividade': atividade,
+      'blockTime': blockTime,
       'proximaRoleta': proximaRoleta,
     });
   }

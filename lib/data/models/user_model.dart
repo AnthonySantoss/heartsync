@@ -12,6 +12,8 @@ class UserModel extends User {
     String? photoUrl,
     DateTime? birthDate,
     String? token,
+    DateTime? anniversaryDate,
+    DateTime? syncDate,
   }) : super(
     serverId: serverId,
     localId: localId,
@@ -20,6 +22,8 @@ class UserModel extends User {
     photoUrl: photoUrl,
     birthDate: birthDate,
     token: token,
+    anniversaryDate: anniversaryDate,
+    syncDate: syncDate,
   );
 
   // Factory para criar UserModel a partir de um JSON da API.
@@ -33,8 +37,9 @@ class UserModel extends User {
       email: userEntity.email,
       photoUrl: userEntity.photoUrl,
       birthDate: userEntity.birthDate,
-      token: userEntity.token,     // Token geralmente não vem da API de 'profile', mas sim do login/auth.
-      // Poderia ser adicionado ao UserModel se a API de perfil o retornasse.
+      token: userEntity.token, // Token geralmente não vem da API de 'profile', mas sim do login/auth
+      anniversaryDate: userEntity.anniversaryDate,
+      syncDate: userEntity.syncDate,
     );
   }
 
@@ -50,6 +55,8 @@ class UserModel extends User {
       photoUrl: userEntity.photoUrl,
       birthDate: userEntity.birthDate,
       token: userEntity.token,
+      anniversaryDate: userEntity.anniversaryDate,
+      syncDate: userEntity.syncDate,
     );
   }
 

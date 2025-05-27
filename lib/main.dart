@@ -1,25 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:heartsync/data/datasources/database_helper.dart';
-import 'package:heartsync/presentation/viewmodels/statistic_viewmodel.dart'; // Importe o ViewModel
+import 'package:heartsync/presentation/viewmodels/statistic_viewmodel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:heartsync/src/config/routes.dart';
 import 'di/injection.dart' as di; // Seu arquivo de injeção de dependência
-import 'package:provider/provider.dart'; // Importe o Provider
-import 'package:intl/date_symbol_data_local.dart'; // ADICIONADO: Para formatação de data localizada
+import 'package:provider/provider.dart';
+import 'package:intl/date_symbol_data_local.dart'; // Para formatação de data localizada
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inicializa tudo na ordem correta
+  // Inicializa SharedPreferences
   final prefs = await SharedPreferences.getInstance();
-  // Garante que a injeção de dependência seja inicializada.
-  // É crucial que StatisticViewModel e suas dependências estejam registrados em di.init().
-  await di.init();
-  // Garante que o banco de dados seja inicializado antes de rodar o app.
-  await DatabaseHelper.instance.database;
 
-  // ADICIONADO: Inicializar dados de localização para o pacote intl
-  // Isso permite que DateFormat('E', 'pt_BR') funcione corretamente para os dias da semana.
+  // Inicializa a injeção de dependências
+  try {
+    await di.init();
+    print('Dependências registradas com sucesso no GetIt');
+  } catch (e) {
+    print('Erro ao inicializar dependências: $e');
+    // Fallback ou tratamento de erro, se necessário
+  }
+
+  // Inicializa o banco de dados
+  try {
+    await DatabaseHelper.instance.database;
+    print('Banco de dados inicializado com sucesso');
+  } catch (e) {
+    print('Erro ao inicializar o banco de dados: $e');
+  }
+
+  // Inicializa dados de localização para o pacote intl
   await initializeDateFormatting('pt_BR', null);
 
   runApp(MyApp(prefs: prefs));
@@ -32,15 +43,12 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Envolve o MaterialApp com MultiProvider para disponibilizar os ViewModels
-    // para a árvore de widgets.
     return MultiProvider(
       providers: [
-        // Registra o StatisticViewModel. Qualquer widget descendente poderá acessá-lo
-        // usando Provider.of<StatisticViewModel>(context) ou context.watch/read<StatisticViewModel>().
+        // Registra o StatisticViewModel usando o GetIt
         ChangeNotifierProvider(create: (_) => di.sl<StatisticViewModel>()),
-        // Adicione outros providers/viewmodels globais aqui se necessário.
-        // Ex: ChangeNotifierProvider(create: (_) => di.sl<AuthViewModel>()),
+        // Adicione outros providers globais aqui, se necessário
+        // Exemplo: ChangeNotifierProvider(create: (_) => di.sl<AuthViewModel>()),
       ],
       child: MaterialApp(
         title: 'HeartSync',
@@ -48,36 +56,32 @@ class MyApp extends StatelessWidget {
           primarySwatch: Colors.pink,
           visualDensity: VisualDensity.adaptivePlatformDensity,
           colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.pink).copyWith(
-            secondary: Colors.pinkAccent, // Cor secundária para elementos como FABs
+            secondary: Colors.pinkAccent,
           ),
-          // Você pode adicionar mais customizações de tema aqui (fontes, temas de botões, etc.)
         ),
-        debugShowCheckedModeBanner: false, // Opcional: remove o banner de debug da UI.
-        initialRoute: _getInitialRoute(), // Define a rota inicial baseada na lógica de estado.
-        routes: AppRoutes.getRoutes(prefs), // Define as rotas nomeadas da aplicação.
-        onUnknownRoute: AppRoutes.onUnknownRoute, // Define uma rota para caminhos não encontrados.
+        debugShowCheckedModeBanner: false,
+        initialRoute: _getInitialRoute(),
+        routes: AppRoutes.getRoutes(prefs),
+        onUnknownRoute: AppRoutes.onUnknownRoute,
       ),
     );
   }
 
-  // Determina a rota inicial da aplicação baseado no estado de login e primeira vez.
+  // Determina a rota inicial da aplicação baseado no estado de login e primeira vez
   String _getInitialRoute() {
     bool isFirstTime = prefs.getBool('isFirstTime') ?? true;
     bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
     print('Initial Route Check - isFirstTime: $isFirstTime, isLoggedIn: $isLoggedIn');
 
     if (isFirstTime) {
-      // Se for a primeira vez, geralmente direciona para uma tela de introdução/onboarding
-      // ou para a tela de login/registro.
-      // É comum setar 'isFirstTime' para false após o onboarding.
-      // Ex: prefs.setBool('isFirstTime', false); (em outra parte do código, após o onboarding)
-      return AppRoutes.home; // Usando constante de rota se definida em AppRoutes.
+      // Direciona para a tela de introdução/onboarding
+      return AppRoutes.intro; // Ajuste para a rota de introdução, se diferente
     } else if (isLoggedIn) {
-      // Se o usuário já fez login e não é a primeira vez, direciona para a homepage.
-      return AppRoutes.homePage; // Usando constante de rota se definida.
+      // Direciona para a homepage se o usuário estiver logado
+      return AppRoutes.homePage;
     } else {
-      // Se não for a primeira vez e não estiver logado, direciona para a tela de login.
-      return AppRoutes.home; // Usando constante de rota se definida.
+      // Direciona para a tela de login se não estiver logado
+      return AppRoutes.login;
     }
   }
 }

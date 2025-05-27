@@ -6,7 +6,7 @@ const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
 const nodemailer = require('nodemailer');
-const jwt = require('jsonwebtoken');
+const jwt = require('jsonwebtoken'); // Adicionado
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,9 +18,9 @@ const db = new sqlite3.Database('./heartsync.db', (err) => {
     console.error('Erro ao conectar ao banco de dados:', err.message);
   } else {
     console.log('Conectado ao banco de dados SQLite');
-    db.run('PRAGMA foreign_keys = ON;', (pragmaErr) => {
-      if (pragmaErr) {
-        console.error('Erro ao habilitar chaves estrangeiras:', pragmaErr.message);
+    db.run('PRAGMA foreign_keys = ON;', (err) => {
+      if (err) {
+        console.error('Erro ao habilitar chaves estrangeiras:', err.message);
       } else {
         console.log('Chaves estrangeiras habilitadas');
       }
@@ -29,36 +29,8 @@ const db = new sqlite3.Database('./heartsync.db', (err) => {
   }
 });
 
-// Função para criar/substituir o trigger de updatedAt para a tabela users
-function createOrReplaceUsersUpdatedAtTrigger(database) {
-  const triggerName = 'trigger_users_updatedAt';
-  database.serialize(() => {
-    database.run(`DROP TRIGGER IF EXISTS ${triggerName};`, (dropErr) => {
-      if (dropErr) {
-        console.warn(`Nota: Falha ao tentar remover trigger ${triggerName} (pode não existir):`, dropErr.message);
-      }
-      database.run(
-        `CREATE TRIGGER ${triggerName}
-         AFTER UPDATE ON users
-         FOR EACH ROW
-         BEGIN
-           UPDATE users SET updatedAt = strftime('%Y-%m-%d %H:%M:%S', 'now') WHERE id = OLD.id;
-         END;`,
-        (createErr) => {
-          if (createErr) {
-            console.error(`Erro ao criar/substituir trigger ${triggerName}:`, createErr.message);
-          } else {
-            console.log(`Trigger ${triggerName} criado/substituído com sucesso.`);
-          }
-        }
-      );
-    });
-  });
-}
-
 function initializeDatabase() {
   db.serialize(() => {
-    // Tabela USERS
     db.run(
       `CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,51 +42,14 @@ function initializeDatabase() {
         profileImagePath TEXT,
         heartcode TEXT UNIQUE NOT NULL,
         conectado BOOLEAN DEFAULT FALSE,
-        createdAt TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
-        updatedAt TEXT
+        createdAt TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now'))
       )`,
       (err) => {
-        if (err) {
-          console.error('Erro ao criar tabela users:', err.message);
-        } else {
-          console.log('Tabela users criada ou já existe.');
-          // Verificar se a coluna updatedAt existe
-          db.all("PRAGMA table_info(users)", (pragmaErr, columns) => {
-            if (pragmaErr) {
-              console.error("Erro ao verificar schema da tabela users:", pragmaErr.message);
-              return;
-            }
-            const updatedAtExists = columns.some(col => col.name === 'updatedAt');
-            if (!updatedAtExists) {
-              // Adicionar a coluna sem valor padrão dinâmico
-              db.run("ALTER TABLE users ADD COLUMN updatedAt TEXT", (alterErr) => {
-                if (alterErr) {
-                  console.error("Erro ao adicionar coluna updatedAt à tabela users:", alterErr.message);
-                  return;
-                }
-                console.log("Coluna updatedAt adicionada à tabela users.");
-                // Preencher updatedAt para registros existentes
-                db.run(
-                  "UPDATE users SET updatedAt = strftime('%Y-%m-%d %H:%M:%S', 'now') WHERE updatedAt IS NULL",
-                  (updateErr) => {
-                    if (updateErr) {
-                      console.error("Erro ao preencher valores de updatedAt:", updateErr.message);
-                    } else {
-                      console.log("Valores de updatedAt preenchidos para registros existentes.");
-                      createOrReplaceUsersUpdatedAtTrigger(db);
-                    }
-                  }
-                );
-              });
-            } else {
-              createOrReplaceUsersUpdatedAtTrigger(db);
-            }
-          });
-        }
+        if (err) console.error('Erro ao criar tabela users:', err.message);
+        else console.log('Tabela users criada ou já existe');
       }
     );
 
-    // Tabela COUPLES
     db.run(
       `CREATE TABLE IF NOT EXISTS couples (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -131,7 +66,6 @@ function initializeDatabase() {
       }
     );
 
-    // Tabela VERIFICATION_CODES
     db.run(
       `CREATE TABLE IF NOT EXISTS verification_codes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -158,7 +92,7 @@ const transporter = nodemailer.createTransport({
 
 // Configurações do Express
 app.use(cors({
-  origin: ['http://localhost', 'http://10.0.2.2', 'http://localhost:8081', `http://${process.env.LOCAL_IP}`],
+  origin: ['http://localhost', 'http://10.0.2.2', 'http://localhost:8081'],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -211,60 +145,137 @@ app.post('/auth/register', async (req, res) => {
 
   const heartcode = generateHeartCode();
   try {
-    db.run(
-      `INSERT INTO users (nome, email, dataNascimento, senha, temFoto, profileImagePath, heartcode)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [nome, email, dataNascimento, senha, false, null, heartcode],
-      function(err) {
-        if (err) {
-          if (err.message.includes('UNIQUE constraint failed: users.email')) {
-            return res.status(400).json({ error: 'Email já registrado' });
-          }
-          console.error('Erro ao registrar usuário:', err);
-          return res.status(500).json({ error: 'Erro ao registrar usuário' });
+    const result = await new Promise((resolve, reject) => {
+      db.run(
+        `INSERT INTO users (nome, email, dataNascimento, senha, temFoto, profileImagePath, heartcode)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [nome, email, dataNascimento, senha, false, null, heartcode],
+        function(err) {
+          if (err) reject(err);
+          else resolve(this.lastID);
         }
+      );
+    });
 
-        const userId = this.lastID;
-        const token = jwt.sign({ id: userId, email }, JWT_SECRET, { expiresIn: '7d' });
-        const response = {
-          user: { _id: userId.toString(), nome, email, heartcode },
-          token
-        };
-        console.log('Usuário registrado:', response);
-        res.status(201).json(response);
-      }
-    );
+    const token = jwt.sign({ id: result, email }, JWT_SECRET, { expiresIn: '7d' });
+    const response = {
+      user: { _id: result, nome, email, heartcode },
+      token
+    };
+    console.log('Usuário registrado:', response);
+    res.status(201).json(response);
   } catch (err) {
-    console.error('Erro inesperado ao tentar registrar usuário:', err);
-    res.status(500).json({ error: 'Erro inesperado ao registrar usuário' });
+    if (err.message.includes('UNIQUE constraint failed: users.email')) {
+      return res.status(400).json({ error: 'Email já registrado' });
+    }
+    console.error('Erro ao registrar usuário:', err);
+    res.status(500).json({ error: 'Erro ao registrar usuário' });
   }
 });
 
-app.post('/auth/login', (req, res) => {
+// Novo endpoint para salvar atividade da roleta
+app.post('/roulette/save', async (req, res) => {
+  const { userId, dataRoleta, atividade, blockTime, proximaRoleta } = req.body;
+  if (!userId || !dataRoleta || !atividade || !blockTime || !proximaRoleta) {
+    return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
+  }
+
+  try {
+    const result = await new Promise((resolve, reject) => {
+      db.run(
+        `INSERT INTO roleta (idUsuario, dataRoleta, atividade, blockTime, proximaRoleta)
+         VALUES (?, ?, ?, ?, ?)`,
+        [userId, dataRoleta, atividade, blockTime, proximaRoleta],
+        function(err) {
+          if (err) reject(err);
+          else resolve(this.lastID);
+        }
+      );
+    });
+    res.status(201).json({ id: result, message: 'Atividade da roleta salva com sucesso' });
+  } catch (err) {
+    console.error('Erro ao salvar atividade da roleta:', err);
+    res.status(500).json({ error: 'Erro ao salvar atividade da roleta' });
+  }
+});
+
+// Novo endpoint para atualizar a sequência (streak)
+app.post('/roulette/update-streak', async (req, res) => {
+  const { userId, streak } = req.body;
+  if (!userId || streak == null) {
+    return res.status(400).json({ error: 'userId e streak são obrigatórios' });
+  }
+
+  try {
+    await new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE users SET streak = ? WHERE id = ?`,
+        [streak, userId],
+        function(err) {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+    res.status(200).json({ message: 'Sequência atualizada com sucesso' });
+  } catch (err) {
+    console.error('Erro ao atualizar sequência:', err);
+    res.status(500).json({ error: 'Erro ao atualizar sequência' });
+  }
+});
+
+// Novo endpoint para recuperar a sequência atual
+app.get('/roulette/streak/:userId', async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const result = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT streak FROM users WHERE id = ?`,
+        [userId],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        }
+      );
+    });
+    if (!result) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+    res.status(200).json({ streak: result.streak || 0 });
+  } catch (err) {
+    console.error('Erro ao recuperar sequência:', err);
+    res.status(500).json({ error: 'Erro ao recuperar sequência' });
+  }
+});
+
+app.post('/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'E-mail e senha são obrigatórios' });
   }
 
-  db.get(
-    `SELECT * FROM users WHERE email = ? AND senha = ?`,
-    [email, password],
-    (err, user) => {
-      if (err) {
-        console.error('Erro ao fazer login (db):', err);
-        return res.status(500).json({ error: 'Erro ao fazer login' });
-      }
-      if (!user) {
-        return res.status(401).json({ error: 'Credenciais inválidas' });
-      }
+  try {
+    const user = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT * FROM users WHERE email = ? AND senha = ?`,
+        [email, password],
+        (err, row) => err ? reject(err) : resolve(row)
+      );
+    });
 
-      const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
-      res.status(200).json({
-        user: { _id: user.id.toString(), nome: user.nome, email: user.email, heartcode: user.heartcode, profileImagePath: user.profileImagePath, temFoto: user.temFoto },
-        token
-      });
+    if (!user) {
+      return res.status(401).json({ error: 'Credenciais inválidas' });
     }
-  );
+
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+    res.status(200).json({
+      user: { _id: user.id, nome: user.nome, email: user.email, heartcode: user.heartcode },
+      token
+    });
+  } catch (err) {
+    console.error('Erro ao fazer login:', err);
+    res.status(500).json({ error: 'Erro ao fazer login' });
+  }
 });
 
 app.post('/send-verification-code', async (req, res) => {
@@ -274,279 +285,215 @@ app.post('/send-verification-code', async (req, res) => {
   }
 
   const verificationCode = Math.floor(100000 + Math.random() * 900000).toString().substring(0, 6);
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // Expira em 10 minutos
 
-  db.run(
-    `INSERT INTO verification_codes (email, code, expiresAt) VALUES (?, ?, ?)`,
-    [email, verificationCode, expiresAt],
-    async (err) => {
-      if (err) {
-        console.error('Erro ao salvar código de verificação no DB:', err);
-        return res.status(500).json({ error: 'Erro ao processar solicitação de código' });
-      }
-      try {
-        const mailOptions = {
-          from: process.env.EMAIL_USER,
-          to: email,
-          subject: 'Código de Verificação - HeartSync',
-          text: `Seu código de verificação é: ${verificationCode}. Digite-o no aplicativo para continuar o registro. Validade: 10 minutos.`,
-        };
-        await transporter.sendMail(mailOptions);
-        console.log(`Código ${verificationCode} enviado para ${email} às ${new Date().toLocaleString()}`);
-        res.status(200).json({ message: 'Código de verificação enviado' });
-      } catch (mailErr) {
-        console.error('Erro ao enviar e-mail:', mailErr);
-        res.status(500).json({ error: 'Erro ao enviar código de verificação' });
-      }
-    }
-  );
+  try {
+    await new Promise((resolve, reject) => {
+      db.run(
+        `INSERT INTO verification_codes (email, code, expiresAt) VALUES (?, ?, ?)`,
+        [email, verificationCode, expiresAt],
+        (err) => err ? reject(err) : resolve()
+      );
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Código de Verificação - HeartSync',
+      text: `Seu código de verificação é: ${verificationCode}. Digite-o no aplicativo para continuar o registro. Validade: 10 minutos.`,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Código ${verificationCode} enviado para ${email} às ${new Date().toLocaleString()}`);
+    res.status(200).json({ message: 'Código de verificação enviado' });
+  } catch (err) {
+    console.error('Erro ao enviar e-mail:', err);
+    res.status(500).json({ error: 'Erro ao enviar código de verificação' });
+  }
 });
 
-app.post('/auth/verify-code', (req, res) => {
-  const startTime = Date.now();
-  console.log(`Verificação: Início da requisição às ${new Date().toLocaleString()}`);
-
+app.post('/auth/verify-code', async (req, res) => {
   const { email, code } = req.body;
   if (!email || !code) {
-    console.log(`Verificação: Falha - E-mail ou código ausente`);
     return res.status(400).json({ error: 'E-mail e código são obrigatórios' });
   }
 
   console.log(`Verificação: Recebida requisição para verificar código para e-mail: ${email}, código: ${code}`);
 
-  db.get(
-    `SELECT * FROM verification_codes WHERE email = ? AND code = ?`,
-    [email, code],
-    (err, result) => {
-      if (err) {
-        console.error('Erro ao verificar código (db):', err);
-        return res.status(500).json({ error: 'Erro ao verificar código' });
-      }
-
-      if (!result) {
-        console.log(`Verificação: Código inválido para e-mail: ${email}, código: ${code}`);
-        return res.status(400).json({ error: 'Código inválido ou já utilizado' });
-      }
-
-      const expiresAt = new Date(result.expiresAt);
-      if (expiresAt < new Date()) {
-        console.log(`Verificação: Código expirado para e-mail: ${email}, código: ${code}, expiresAt: ${expiresAt}`);
-        db.run(`DELETE FROM verification_codes WHERE email = ? AND code = ?`, [email, code], (delErr) => {
-          if (delErr) console.error("Erro ao deletar código expirado:", delErr);
-        });
-        return res.status(400).json({ error: 'Código expirado' });
-      }
-
-      db.run(`DELETE FROM verification_codes WHERE email = ? AND code = ?`, [email, code], (deleteErr) => {
-        if (deleteErr) {
-          console.error('Erro ao deletar código após verificação bem-sucedida:', deleteErr);
-        }
-        console.log(`Verificação: Código verificado com sucesso para e-mail: ${email}, código: ${code}`);
-        res.status(200).json({ message: 'Código verificado com sucesso' });
+  try {
+    // Log para verificar o conteúdo da tabela
+    const allCodes = await new Promise((resolve, reject) => {
+      db.all(`SELECT * FROM verification_codes WHERE email = ?`, [email], (err, rows) => {
+        err ? reject(err) : resolve(rows);
       });
+    });
+    console.log(`Verificação: Códigos armazenados para ${email}:`, allCodes);
 
-      console.log(`Verificação: Fim da requisição. Tempo total: ${(Date.now() - startTime) / 1000} segundos`);
+    const result = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT * FROM verification_codes WHERE email = ? AND code = ?`,
+        [email, code],
+        (err, row) => err ? reject(err) : resolve(row)
+      );
+    });
+
+    if (!result) {
+      console.log(`Verificação: Código inválido para e-mail: ${email}, código: ${code}`);
+      return res.status(400).json({ error: 'Código inválido' });
     }
-  );
+
+    const expiresAt = new Date(result.expiresAt);
+    if (expiresAt < new Date()) {
+      console.log(`Verificação: Código expirado para e-mail: ${email}, código: ${code}, expiresAt: ${expiresAt}`);
+      return res.status(400).json({ error: 'Código expirado' });
+    }
+
+    // Remover o código após a validação
+    await new Promise((resolve, reject) => {
+      db.run(`DELETE FROM verification_codes WHERE email = ? AND code = ?`, [email, code], (err) => err ? reject(err) : resolve());
+    });
+
+    console.log(`Verificação: Código verificado com sucesso para e-mail: ${email}, código: ${code}`);
+    res.status(200).json({ message: 'Código verificado com sucesso' });
+  } catch (err) {
+    console.error('Erro ao verificar código:', err);
+    res.status(500).json({ error: 'Erro ao verificar código' });
+  }
 });
 
-app.get('/users/me', authenticateJWT, (req, res) => {
-  db.get(`SELECT id, nome, email, dataNascimento, temFoto, profileImagePath, heartcode, conectado, createdAt, updatedAt FROM users WHERE id = ?`, [req.user.id], (err, user) => {
-    if (err) {
-      console.error('Erro ao buscar perfil (db):', err);
-      return res.status(500).json({ error: 'Erro ao buscar perfil' });
-    }
+app.get('/users/me', authenticateJWT, async (req, res) => {
+  try {
+    const user = await new Promise((resolve, reject) => {
+      db.get(`SELECT * FROM users WHERE id = ?`, [req.user.id], (err, row) => err ? reject(err) : resolve(row));
+    });
     if (!user) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
     res.status(200).json({
-      _id: user.id.toString(),
+      _id: user.id,
       nome: user.nome,
       email: user.email,
       dataNascimento: user.dataNascimento,
       temFoto: user.temFoto,
       profileImagePath: user.profileImagePath,
       heartcode: user.heartcode,
-      conectado: user.conectado,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt
+      conectado: user.conectado
     });
-  });
+  } catch (err) {
+    console.error('Erro ao buscar perfil:', err);
+    res.status(500).json({ error: 'Erro ao buscar perfil' });
+  }
 });
 
-app.put('/users/:id', authenticateJWT, (req, res) => {
+app.put('/users/:id', authenticateJWT, async (req, res) => {
   const { id } = req.params;
-  if (req.user.id !== parseInt(id, 10)) {
+  if (req.user.id != id) {
     return res.status(403).json({ error: 'Acesso não autorizado' });
   }
   const { nome, dataNascimento } = req.body;
-
-  db.run(
-    `UPDATE users SET nome = ?, dataNascimento = ? WHERE id = ?`,
-    [nome, dataNascimento, id],
-    function(err) {
-      if (err) {
-        console.error('Erro ao atualizar perfil (db):', err);
-        return res.status(500).json({ error: 'Erro ao atualizar perfil' });
-      }
-      if (this.changes === 0) {
-        return res.status(404).json({ error: 'Usuário não encontrado para atualização.' });
-      }
-      res.status(200).json({ message: 'Perfil atualizado com sucesso' });
-    }
-  );
+  try {
+    await new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE users SET nome = ?, dataNascimento = ? WHERE id = ?`,
+        [nome, dataNascimento, id],
+        (err) => err ? reject(err) : resolve()
+      );
+    });
+    res.status(200).json({ message: 'Perfil atualizado com sucesso' });
+  } catch (err) {
+    console.error('Erro ao atualizar perfil:', err);
+    res.status(500).json({ error: 'Erro ao atualizar perfil' });
+  }
 });
 
-app.post('/users/:id/avatar', authenticateJWT, upload.single('avatarFile'), (req, res) => {
-  const startTime = Date.now();
-  console.log(`Upload Foto: Início da requisição para user ${req.params.id} às ${new Date().toLocaleString()}`);
-
+app.post('/users/:id/avatar', authenticateJWT, upload.single('avatarFile'), async (req, res) => {
   const { id } = req.params;
-  if (req.user.id !== parseInt(id, 10)) {
-    console.log(`Upload Foto: Acesso não autorizado para user ${id}`);
+  if (req.user.id != id) {
     return res.status(403).json({ error: 'Acesso não autorizado' });
   }
   if (!req.file) {
-    console.log(`Upload Foto: Nenhum arquivo enviado para user ${id}`);
     return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
   }
-
-  const serverBaseUrl = `${req.protocol}://${req.get('host')}`;
-  const imageUrl = `${serverBaseUrl}/upload/${req.file.filename}`;
-
-  db.run(
-    `UPDATE users SET temFoto = ?, profileImagePath = ? WHERE id = ?`,
-    [true, imageUrl, id],
-    function(err) {
-      if (err) {
-        console.error(`Upload Foto: Erro ao atualizar foto de perfil (db):`, err);
-        return res.status(500).json({ error: 'Erro ao atualizar foto de perfil' });
-      }
-      if (this.changes === 0) {
-        console.log(`Upload Foto: Usuário ${id} não encontrado para atualizar foto`);
-        return res.status(404).json({ error: 'Usuário não encontrado para atualizar foto.' });
-      }
-      console.log(`Upload Foto: Foto atualizada com sucesso para user ${id}`);
-      res.status(200).json({ filePath: imageUrl });
-      console.log(`Upload Foto: Fim da requisição. Tempo total: ${(Date.now() - startTime) / 1000} segundos`);
-    }
-  );
+  const imageUrl = `http://10.0.2.2:${PORT}/upload/${req.file.filename}`;
+  try {
+    await new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE users SET temFoto = ?, profileImagePath = ? WHERE id = ?`,
+        [true, imageUrl, id],
+        (err) => err ? reject(err) : resolve()
+      );
+    });
+    res.status(200).json({ filePath: imageUrl });
+  } catch (err) {
+    console.error('Erro ao atualizar foto de perfil:', err);
+    res.status(500).json({ error: 'Erro ao atualizar foto de perfil' });
+  }
 });
 
-app.delete('/users/:id', authenticateJWT, (req, res) => {
+app.delete('/users/:id', authenticateJWT, async (req, res) => {
   const { id } = req.params;
-  if (req.user.id !== parseInt(id, 10)) {
+  if (req.user.id != id) {
     return res.status(403).json({ error: 'Acesso não autorizado' });
   }
-  db.run(`DELETE FROM users WHERE id = ?`, [id], function(err) {
-    if (err) {
-      console.error('Erro ao deletar conta (db):', err);
-      return res.status(500).json({ error: 'Erro ao deletar conta' });
-    }
-    if (this.changes === 0) {
-      return res.status(404).json({ error: 'Usuário não encontrado para deletar.' });
-    }
+  try {
+    await new Promise((resolve, reject) => {
+      db.run(`DELETE FROM users WHERE id = ?`, [id], (err) => err ? reject(err) : resolve());
+    });
     res.status(200).json({ message: 'Conta deletada com sucesso' });
-  });
+  } catch (err) {
+    console.error('Erro ao deletar conta:', err);
+    res.status(500).json({ error: 'Erro ao deletar conta' });
+  }
 });
 
 app.post('/validate-heartcode', authenticateJWT, async (req, res) => {
   const { userHeartCode, partnerHeartCode } = req.body;
-
-  if (!userHeartCode || !partnerHeartCode) {
-    return res.status(400).json({ error: "Heartcodes do usuário e do parceiro são obrigatórios." });
-  }
-  if (userHeartCode === partnerHeartCode) {
-    return res.status(400).json({ error: "Os heartcodes não podem ser iguais." });
-  }
-
   try {
     const [user, partner] = await Promise.all([
       getUserByHeartCode(userHeartCode),
       getUserByHeartCode(partnerHeartCode)
     ]);
-
-    if (!user) {
-      return res.status(404).json({ error: `Usuário com heartcode ${userHeartCode} não encontrado.` });
+    if (!user || !partner) {
+      return res.status(404).json({ error: 'Usuário ou parceiro não encontrado' });
     }
-    if (!partner) {
-      return res.status(404).json({ error: `Parceiro com heartcode ${partnerHeartCode} não encontrado.` });
+    if (user.conectado || partner.conectado) {
+      return res.status(400).json({ error: 'Um dos usuários já está conectado' });
     }
-
-    if (user.id === partner.id) {
-      return res.status(400).json({ error: "Não é possível conectar-se consigo mesmo." });
-    }
-
-    if (user.conectado) {
-      return res.status(400).json({ error: `Usuário ${user.nome} já está conectado.` });
-    }
-    if (partner.conectado) {
-      return res.status(400).json({ error: `Usuário ${partner.nome} já está conectado.` });
-    }
-
-    const codigoConexao = `CONN${Date.now().toString(36)}${Math.random().toString(36).substring(2, 7)}`.toUpperCase();
-
-    db.serialize(() => {
-      db.run('BEGIN TRANSACTION;');
+    const codigoConexao = `CONN${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+    await new Promise((resolve, reject) => {
       db.run(
         `INSERT INTO couples (idUsuario1, idUsuario2, codigoConexao) VALUES (?, ?, ?)`,
         [user.id, partner.id, codigoConexao],
-        (err) => {
-          if (err) {
-            db.run('ROLLBACK;');
-            console.error('Erro ao criar casal (db):', err);
-            return res.status(500).json({ error: 'Erro ao criar conexão entre usuários.' });
-          }
-
-          const updateUser1Status = new Promise((resolve, reject) => {
-            updateUserConnectionStatus(user.id, true).then(resolve).catch(reject);
-          });
-          const updateUser2Status = new Promise((resolve, reject) => {
-            updateUserConnectionStatus(partner.id, true).then(resolve).catch(reject);
-          });
-
-          Promise.all([updateUser1Status, updateUser2Status])
-            .then(() => {
-              db.run('COMMIT;');
-              res.status(200).json({
-                message: `Conexão estabelecida entre ${user.nome} e ${partner.nome}!`,
-                codigoConexao
-              });
-            })
-            .catch(statusErr => {
-              db.run('ROLLBACK;');
-              console.error('Erro ao atualizar status de conexão dos usuários:', statusErr);
-              return res.status(500).json({ error: 'Erro ao finalizar conexão.' });
-            });
-        }
+        (err) => err ? reject(err) : resolve()
       );
     });
+    await Promise.all([
+      updateUserConnectionStatus(user.id, true),
+      updateUserConnectionStatus(partner.id, true)
+    ]);
+    res.status(200).json({ codigoConexao });
   } catch (err) {
-    console.error('Erro ao validar heartcode (geral):', err);
+    console.error('Erro ao validar heartcode:', err);
     res.status(500).json({ error: 'Erro ao validar heartcode' });
   }
 });
 
-app.post('/upload', authenticateJWT, upload.single('profile_image'), (req, res) => {
+app.post('/upload', upload.single('profile_image'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
   }
-  const serverBaseUrl = `${req.protocol}://${req.get('host')}`;
-  const imageUrl = `${serverBaseUrl}/upload/${req.file.filename}`;
+  const imageUrl = `http://10.0.2.2:${PORT}/upload/${req.file.filename}`;
   res.status(200).json({ imageUrl });
 });
 
 // Funções auxiliares
 function generateHeartCode() {
-  const numbers = Math.floor(100000 + Math.random() * 899999).toString();
-  const letters = String.fromCharCode(65 + Math.floor(Math.random() * 26)) +
-                  String.fromCharCode(65 + Math.floor(Math.random() * 26));
-  const arr = (numbers + letters).split('');
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr.join('').substring(0, 8);
+  const numbers = Math.floor(1000000 + Math.random() * 9000000).toString().substring(0, 7);
+  const letters = String.fromCharCode(
+    65 + Math.floor(Math.random() * 26),
+    65 + Math.floor(Math.random() * 26)
+  );
+  return numbers + letters;
 }
 
 function getUserByHeartCode(heartcode) {
@@ -554,10 +501,7 @@ function getUserByHeartCode(heartcode) {
     db.get(
       `SELECT * FROM users WHERE heartcode = ?`,
       [heartcode],
-      (err, row) => {
-        if (err) return reject(err);
-        resolve(row);
-      }
+      (err, row) => err ? reject(err) : resolve(row)
     );
   });
 }
@@ -566,24 +510,20 @@ function updateUserConnectionStatus(userId, status) {
   return new Promise((resolve, reject) => {
     db.run(
       `UPDATE users SET conectado = ? WHERE id = ?`,
-      [status ? 1 : 0, userId],
-      function(err) {
-        if (err) return reject(err);
-        if (this.changes === 0) return reject(new Error(`Usuário com ID ${userId} não encontrado para atualizar status.`));
-        resolve(this.changes);
-      }
+      [status, userId],
+      (err) => err ? reject(err) : resolve()
     );
   });
 }
 
-// Servir arquivos estáticos da pasta 'upload'
+// Servir arquivos estáticos
 app.use('/upload', express.static(path.join(__dirname, uploadDir)));
 
-// Middleware de erro global
+// Middleware de erro
 app.use((err, req, res, next) => {
-  console.error('Erro não tratado no servidor:', err.stack || err);
-  res.status(err.status || 500).json({
-    error: 'Falha inesperada no servidor. Tente novamente mais tarde.',
+  console.error('Erro no servidor:', err);
+  res.status(500).json({
+    error: 'Falha no servidor. Tente novamente mais tarde.',
     details: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
 });
@@ -591,7 +531,4 @@ app.use((err, req, res, next) => {
 // Iniciar servidor
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor rodando em http://0.0.0.0:${PORT}`);
-  if (process.env.LOCAL_IP) {
-    console.log(`Também acessível em http://${process.env.LOCAL_IP}:${PORT}`);
-  }
 });

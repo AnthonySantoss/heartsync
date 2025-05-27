@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:heartsync/servico/api_service.dart';
 import 'package:heartsync/src/features/login/presentation/view/Profile_screen.dart';
 import 'package:heartsync/src/features/login/presentation/widgets/Background_widget.dart';
 import 'package:flutter_fortune_wheel/flutter_fortune_wheel.dart';
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/services.dart';
-
+import 'package:heartsync/data/datasources/database_helper.dart';
+import 'package:heartsync/src/utils/auth_manager.dart';
+import 'package:get_it/get_it.dart';
 
 class Activity {
   final String name;
@@ -17,7 +20,7 @@ class Activity {
 class RouletteScreen extends StatefulWidget {
   final List<Activity> initialActivities;
   final String? imageUrl;
-  final String dayUsed;
+  final int userId;
 
   const RouletteScreen({
     super.key,
@@ -29,14 +32,14 @@ class RouletteScreen extends StatefulWidget {
       Activity(name: 'Dormir', blockTime: '00:30'),
     ],
     this.imageUrl,
-    this.dayUsed = '3',
+    required this.userId,
   });
 
   @override
   State<RouletteScreen> createState() => _RouletteScreenState();
 }
 
-class _RouletteScreenState extends State<RouletteScreen> {
+class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObserver {
   List<Activity> activities = [];
   List<Activity> outdoorActivities = const [
     Activity(name: 'Caminhar', blockTime: '01:00'),
@@ -47,20 +50,49 @@ class _RouletteScreenState extends State<RouletteScreen> {
   ];
   int selectedIndex = 0;
   bool isSpinning = false;
+  bool isTimerRunning = false;
+  int timerSeconds = 0;
+  Timer? _timer;
   final StreamController<int> _controller = StreamController<int>();
   String selectedCategory = 'Dentro de Casa';
+  int streak = 0;
+  final DatabaseHelper _databaseHelper = GetIt.instance<DatabaseHelper>();
+  final ApiService _apiService = GetIt.instance<ApiService>();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     activities = List.from(widget.initialActivities);
     _controller.add(selectedIndex);
+    _loadStreak();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _timer?.cancel();
     _controller.close();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.paused && isTimerRunning) {
+      _resetTimer();
+    }
+  }
+
+  Future<void> _loadStreak() async {
+    try {
+      final currentStreak = await _databaseHelper.getStreakCount(widget.userId);
+      setState(() {
+        streak = currentStreak;
+      });
+    } catch (e) {
+      print('Erro ao carregar sequência: $e');
+    }
   }
 
   String _formatDisplayTime(String time) {
@@ -85,6 +117,54 @@ class _RouletteScreenState extends State<RouletteScreen> {
 
   bool _isValidTime(String time) {
     return RegExp(r'^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$').hasMatch(time);
+  }
+
+  void _startTimer(String blockTime) {
+    final parts = blockTime.split(':');
+    if (parts.length != 2) return;
+
+    final hours = int.parse(parts[0]);
+    final minutes = int.parse(parts[1]);
+    timerSeconds = hours * 3600 + minutes * 60;
+
+    setState(() {
+      isTimerRunning = true;
+    });
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (timerSeconds > 0) {
+        setState(() {
+          timerSeconds--;
+        });
+      } else {
+        timer.cancel();
+        setState(() {
+          isTimerRunning = false;
+        });
+        _incrementStreak();
+      }
+    });
+  }
+
+  void _resetTimer() {
+    _timer?.cancel();
+    setState(() {
+      isTimerRunning = false;
+      timerSeconds = 0;
+    });
+  }
+
+  Future<void> _incrementStreak() async {
+    try {
+      final newStreak = streak + 1;
+      await _databaseHelper.updateStreakCount(widget.userId, newStreak);
+      await _apiService.updateStreak(widget.userId, newStreak);
+      setState(() {
+        streak = newStreak;
+      });
+    } catch (e) {
+      print('Erro ao incrementar sequência: $e');
+    }
   }
 
   void addActivity() {
@@ -367,6 +447,33 @@ class _RouletteScreenState extends State<RouletteScreen> {
     );
   }
 
+  Future<void> _saveRouletteActivity() async {
+    final now = DateTime.now();
+    final dataRoleta = now.toIso8601String().split('T')[0];
+    final proximaRoleta = now.add(const Duration(days: 1)).toIso8601String().split('T')[0];
+    final atividade = activities[selectedIndex].name;
+    final blockTime = activities[selectedIndex].blockTime;
+
+    try {
+      await _databaseHelper.insertRoulette(
+        idUsuario: widget.userId,
+        dataRoleta: dataRoleta,
+        atividade: atividade,
+        blockTime: blockTime,
+        proximaRoleta: proximaRoleta,
+      );
+      await _apiService.saveRouletteActivity(
+        userId: widget.userId,
+        dataRoleta: dataRoleta,
+        atividade: atividade,
+        blockTime: blockTime,
+        proximaRoleta: proximaRoleta,
+      );
+    } catch (e) {
+      print('Erro ao salvar atividade da roleta: $e');
+    }
+  }
+
   void spinWheel() {
     if (activities.isEmpty) return;
     setState(() {
@@ -376,6 +483,7 @@ class _RouletteScreenState extends State<RouletteScreen> {
     });
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
+        _saveRouletteActivity();
         _showResultDialog(context);
       }
     });
@@ -405,7 +513,7 @@ class _RouletteScreenState extends State<RouletteScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                'Tempo restante',
+                'Tempo de bloqueio',
                 style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
                 textAlign: TextAlign.center,
               ),
@@ -447,7 +555,10 @@ class _RouletteScreenState extends State<RouletteScreen> {
                   ),
                   const SizedBox(height: 10),
                   TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _startTimer(activities[selectedIndex].blockTime);
+                    },
                     style: TextButton.styleFrom(
                       backgroundColor: const Color(0xFF4D3192),
                       shape: RoundedRectangleBorder(
@@ -456,7 +567,7 @@ class _RouletteScreenState extends State<RouletteScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                     ),
                     child: const Text(
-                      'Manter Tarefa',
+                      'Iniciar Tarefa',
                       style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -469,6 +580,12 @@ class _RouletteScreenState extends State<RouletteScreen> {
     );
   }
 
+  String _formatTimer(int seconds) {
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final secs = seconds % 60;
+    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -505,7 +622,7 @@ class _RouletteScreenState extends State<RouletteScreen> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              widget.dayUsed,
+                              streak.toString(),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 24,
@@ -717,9 +834,9 @@ class _RouletteScreenState extends State<RouletteScreen> {
               const SizedBox(height: 20),
               Center(
                 child: Visibility(
-                  visible: !isSpinning, // Inverte o valor - mostra quando NÃO estiver girando
+                  visible: !isSpinning,
                   child: ElevatedButton(
-                    onPressed: spinWheel,
+                    onPressed: isTimerRunning ? null : spinWheel,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF4D3192),
                       padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
@@ -738,6 +855,28 @@ class _RouletteScreenState extends State<RouletteScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 20),
+              if (isTimerRunning)
+                Center(
+                  child: Container(
+                    width: 150,
+                    height: 150,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFF7D48FE), width: 5),
+                    ),
+                    child: Center(
+                      child: Text(
+                        _formatTimer(timerSeconds),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               const SizedBox(height: 20),
               Center(
                 child: Text(

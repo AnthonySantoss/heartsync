@@ -8,14 +8,14 @@ import 'package:heartsync/data/models/user_model.dart';
 class ApiService {
   final String _baseUrl;
 
-  ApiService({String? baseUrl}) : _baseUrl = baseUrl ?? "http://192.168.0.8:3000";
+  ApiService({String? baseUrl}) : _baseUrl = baseUrl ?? "http://192.168.0.29:3000";
 
   String getBaseUrl() => _baseUrl;
 
   Exception _handleHttpError(http.Response response, String operation) {
     try {
       final errorBody = jsonDecode(response.body);
-      return Exception(errorBody['error'] ?? 'Erro em $operation: ${response.statusCode}');
+      return Exception(errorBody['error'] ?? 'Erro em $operation: ${response.statusCode} - ${errorBody.toString()}');
     } catch (e) {
       String responseBodySnippet = response.body.length > 200 ? '${response.body.substring(0, 200)}...' : response.body;
       return Exception('Erro em $operation (HTTP ${response.statusCode}). Resposta: $responseBodySnippet');
@@ -48,7 +48,7 @@ class ApiService {
         final responseData = jsonDecode(response.body) as Map<String, dynamic>;
         if (responseData.containsKey('user') && responseData['user'] is Map<String, dynamic> && responseData.containsKey('token')) {
           final userDataFromServer = responseData['user'] as Map<String, dynamic>;
-          final serverId = userDataFromServer['_id'] as String?;
+          final serverId = userDataFromServer['_id']?.toString();
           final token = responseData['token'] as String?;
           if (serverId == null || token == null) {
             throw Exception('ID do usuário ou token não retornado pelo backend no login.');
@@ -82,7 +82,7 @@ class ApiService {
         final responseData = jsonDecode(response.body) as Map<String, dynamic>;
         if (responseData.containsKey('user') && responseData['user'] is Map<String, dynamic> && responseData.containsKey('token')) {
           final userDataFromServer = responseData['user'] as Map<String, dynamic>;
-          final serverId = userDataFromServer['_id'] as String?;
+          final serverId = userDataFromServer['_id']?.toString();
           final token = responseData['token'] as String?;
           if (serverId == null || token == null) {
             throw Exception('ID do usuário ou token não retornado pelo backend no registro.');
@@ -113,7 +113,7 @@ class ApiService {
         url,
         headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
       ).timeout(const Duration(seconds: 30));
-      print('ApiService: Resposta recebida do perfil: ${response.statusCode}');
+      print('ApiService: Resposta recebida do perfil: ${response.statusCode} - Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final responseBody = jsonDecode(response.body);
@@ -286,7 +286,7 @@ class ApiService {
     const String operation = "deletar conta";
     String? token = await AuthManager.getToken();
     String? serverId = await AuthManager.getServerId();
-    if (token == null) throw Exception('Usuário não autenticado para $operation.');
+    if (token == null) throw Exception('Usuário não autenticado. Token não encontrado para $operation.');
     if (serverId == null) throw Exception('ID do servidor não encontrado para $operation.');
     final url = Uri.parse('$_baseUrl/users/$serverId');
     try {
@@ -299,6 +299,102 @@ class ApiService {
 
       if (response.statusCode == 200) {
         return;
+      } else {
+        throw _handleHttpError(response, operation);
+      }
+    } catch (e) {
+      throw _handleGenericError(e, operation);
+    }
+  }
+
+  Future<Map<String, dynamic>> saveRouletteActivity({
+    required int userId,
+    required String dataRoleta,
+    required String atividade,
+    required String blockTime,
+    required String proximaRoleta,
+  }) async {
+    const String operation = "salvar atividade da roleta";
+    String? token = await AuthManager.getToken();
+    if (token == null) throw Exception('Usuário não autenticado. Token não encontrado para $operation.');
+
+    try {
+      print('ApiService: Salvando atividade da roleta para userId: $userId');
+      final response = await http.post(
+        Uri.parse('$_baseUrl/roulette/save'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'userId': userId,
+          'dataRoleta': dataRoleta,
+          'atividade': atividade,
+          'blockTime': blockTime,
+          'proximaRoleta': proximaRoleta,
+        }),
+      ).timeout(const Duration(seconds: 30));
+      print('ApiService: Resposta recebida do salvamento da roleta: ${response.statusCode}');
+
+      if (response.statusCode == 201) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else {
+        throw _handleHttpError(response, operation);
+      }
+    } catch (e) {
+      throw _handleGenericError(e, operation);
+    }
+  }
+
+  Future<void> updateStreak(int userId, int streak) async {
+    const String operation = "atualizar sequência";
+    String? token = await AuthManager.getToken();
+    if (token == null) throw Exception('Usuário não autenticado. Token não encontrado para $operation.');
+
+    try {
+      print('ApiService: Atualizando sequência para userId: $userId, streak: $streak');
+      final response = await http.post(
+        Uri.parse('$_baseUrl/roulette/update-streak'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'userId': userId,
+          'streak': streak,
+        }),
+      ).timeout(const Duration(seconds: 30));
+      print('ApiService: Resposta recebida da atualização de sequência: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        return;
+      } else {
+        throw _handleHttpError(response, operation);
+      }
+    } catch (e) {
+      throw _handleGenericError(e, operation);
+    }
+  }
+
+  Future<int> getStreak(int userId) async {
+    const String operation = "recuperar sequência";
+    String? token = await AuthManager.getToken();
+    if (token == null) throw Exception('Usuário não autenticado. Token não encontrado para $operation.');
+
+    try {
+      print('ApiService: Recuperando sequência para userId: $userId');
+      final response = await http.get(
+        Uri.parse('$_baseUrl/roulette/streak/$userId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 30));
+      print('ApiService: Resposta recebida da recuperação de sequência: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body) as Map<String, dynamic>;
+        return responseData['streak'] as int? ?? 0; // Fallback para 0 se streak for null
       } else {
         throw _handleHttpError(response, operation);
       }

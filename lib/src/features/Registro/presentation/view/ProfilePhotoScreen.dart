@@ -32,7 +32,7 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
   File? _selectedImageFile;
   String? imageUrl;
   final ImagePicker _picker = ImagePicker();
-  final ApiService _apiService = ApiService(baseUrl: 'http://192.168.0.8:3000');
+  final ApiService _apiService = ApiService(baseUrl: 'http://192.168.0.29:3000');
   final DatabaseHelper _databaseHelper = GetIt.instance<DatabaseHelper>();
 
   void _pickImage() async {

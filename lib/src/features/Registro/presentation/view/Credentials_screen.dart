@@ -24,7 +24,7 @@ class CredentialsScreenState extends State<CredentialsScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final ApiService _apiService = ApiService(baseUrl: 'http://192.168.0.8:3000');
+  final ApiService _apiService = ApiService(baseUrl: 'http://192.168.0.29:3000');
   bool _isLoading = false;
 
   @override

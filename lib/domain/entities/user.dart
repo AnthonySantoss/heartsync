@@ -37,8 +37,8 @@ class User {
     return User(
       localId: map['id'] as int?,
       serverId: map['serverId'] as String? ?? 'local-${map['id']}',
-      name: map['nome'] as String,
-      email: map['email'] as String,
+      name: map['nome'] as String? ?? 'Usuário Desconhecido', // Fallback para nome
+      email: map['email'] as String? ?? 'email@desconhecido.com', // Fallback para email
       photoUrl: map['profileImagePath'] as String?,
       birthDate: parsedBirthDate,
       token: map['token'] as String?,
@@ -48,9 +48,14 @@ class User {
   }
 
   factory User.fromJson(Map<String, dynamic> json) {
+    final idFromJson = json['_id'] ?? json['id'];
+    if (idFromJson == null) {
+      throw FormatException("ID do usuário inválido ou ausente no JSON da API: $json");
+    }
+
     DateTime? parsedBirthDate;
-    if (json['birthDate'] != null && json['birthDate'] is String && (json['birthDate'] as String).isNotEmpty) {
-      parsedBirthDate = DateTime.tryParse(json['birthDate'] as String);
+    if (json['dataNascimento'] != null && json['dataNascimento'] is String) {
+      parsedBirthDate = _parseDate(json['dataNascimento']);
     }
     DateTime? parsedAnniversaryDate;
     if (json['anniversaryDate'] != null && json['anniversaryDate'] is String && (json['anniversaryDate'] as String).isNotEmpty) {
@@ -60,20 +65,32 @@ class User {
     if (json['syncDate'] != null && json['syncDate'] is String && (json['syncDate'] as String).isNotEmpty) {
       parsedSyncDate = DateTime.tryParse(json['syncDate'] as String);
     }
-    final idFromJson = json['_id'] ?? json['id'];
-    if (idFromJson == null || idFromJson is! String) {
-      throw FormatException("ID do usuário inválido ou ausente no JSON da API: $json");
-    }
 
     return User(
-      serverId: idFromJson as String,
-      name: json['name'] as String,
-      email: json['email'] as String,
-      photoUrl: json['photoUrl'] as String?,
+      serverId: idFromJson.toString(), // Garantir que seja string
+      name: json['nome'] as String? ?? json['name'] as String? ?? 'Usuário Desconhecido', // Mapeia 'nome' e tem fallback
+      email: json['email'] as String? ?? 'email@desconhecido.com', // Fallback para email
+      photoUrl: json['profileImagePath'] as String? ?? json['photoUrl'] as String?, // Mapeia 'profileImagePath'
       birthDate: parsedBirthDate,
+      token: json['token'] as String?,
       anniversaryDate: parsedAnniversaryDate,
       syncDate: parsedSyncDate,
     );
+  }
+
+  // Função auxiliar para parsear datas no formato 'dd.MM.yyyy'
+  static DateTime? _parseDate(String dateStr) {
+    try {
+      final parts = dateStr.split('.');
+      if (parts.length != 3) return null;
+      final day = int.parse(parts[0]);
+      final month = int.parse(parts[1]);
+      final year = int.parse(parts[2]);
+      return DateTime(year, month, day);
+    } catch (e) {
+      print('Erro ao parsear data: $e');
+      return null;
+    }
   }
 
   Map<String, dynamic> toDbMap() {
