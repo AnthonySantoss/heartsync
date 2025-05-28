@@ -3,7 +3,7 @@ class User {
   final int? localId;
   String name;
   String email;
-  String? photoUrl;
+  String? photoUrl; // Armazena o caminho local ou URL da foto de perfil
   DateTime? birthDate;
   String? token;
   DateTime? anniversaryDate;
@@ -37,9 +37,9 @@ class User {
     return User(
       localId: map['id'] as int?,
       serverId: map['serverId'] as String? ?? 'local-${map['id']}',
-      name: map['nome'] as String? ?? 'Usuário Desconhecido', // Fallback para nome
-      email: map['email'] as String? ?? 'email@desconhecido.com', // Fallback para email
-      photoUrl: map['profileImagePath'] as String?,
+      name: map['nome'] as String? ?? 'Usuário Desconhecido',
+      email: map['email'] as String? ?? 'email@desconhecido.com',
+      photoUrl: map['profileImagePath'] as String? ?? '', // Garantir que photoUrl nunca seja null, usando string vazia como padrão
       birthDate: parsedBirthDate,
       token: map['token'] as String?,
       anniversaryDate: parsedAnniversaryDate,
@@ -67,10 +67,10 @@ class User {
     }
 
     return User(
-      serverId: idFromJson.toString(), // Garantir que seja string
-      name: json['nome'] as String? ?? json['name'] as String? ?? 'Usuário Desconhecido', // Mapeia 'nome' e tem fallback
-      email: json['email'] as String? ?? 'email@desconhecido.com', // Fallback para email
-      photoUrl: json['profileImagePath'] as String? ?? json['photoUrl'] as String?, // Mapeia 'profileImagePath'
+      serverId: idFromJson.toString(),
+      name: json['nome'] as String? ?? json['name'] as String? ?? 'Usuário Desconhecido',
+      email: json['email'] as String? ?? 'email@desconhecido.com',
+      photoUrl: (json['profileImagePath'] as String? ?? json['photoUrl'] as String?) ?? '', // Garantir string vazia como padrão
       birthDate: parsedBirthDate,
       token: json['token'] as String?,
       anniversaryDate: parsedAnniversaryDate,
@@ -98,7 +98,7 @@ class User {
       'serverId': serverId,
       'nome': name,
       'email': email,
-      'profileImagePath': photoUrl,
+      'profileImagePath': photoUrl ?? '', // Garantir que photoUrl seja salvo como string vazia se null
       'dataNascimento': birthDate?.toIso8601String(),
       'token': token,
       'anniversaryDate': anniversaryDate?.toIso8601String(),
@@ -115,7 +115,7 @@ class User {
       'name': name,
       'email': email,
     };
-    if (photoUrl != null) {
+    if (photoUrl != null && photoUrl!.isNotEmpty) { // Apenas incluir se não for vazio
       map['photoUrl'] = photoUrl;
     }
     if (birthDate != null) {
@@ -150,7 +150,7 @@ class User {
       localId: localId ?? this.localId,
       name: name ?? this.name,
       email: email ?? this.email,
-      photoUrl: setPhotoUrlToNull ? null : (photoUrl ?? this.photoUrl),
+      photoUrl: setPhotoUrlToNull ? null : (photoUrl ?? this.photoUrl ?? ''), // Garantir string vazia como padrão
       birthDate: setBirthDateToNull ? null : (birthDate ?? this.birthDate),
       token: token ?? this.token,
       anniversaryDate: setAnniversaryDateToNull ? null : (anniversaryDate ?? this.anniversaryDate),

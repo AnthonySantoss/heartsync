@@ -150,7 +150,7 @@ app.use(
       'http://localhost',
       'http://localhost:8081',
       'http://10.0.2.2:3000',
-      'http://192.168.1.14:3000',
+      'http://192.168.119.162:3000',
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -630,7 +630,7 @@ app.post('/users/:id/avatar', authenticateJWT, upload.single('avatarFile'), asyn
   if (!req.file) {
     return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
   }
-  const imageUrl = `http://192.168.0.29:${PORT}/upload/${req.file.filename}`;
+  const imageUrl = `http://192.168.119.162:${PORT}/upload/${req.file.filename}`;
   try {
     await new Promise((resolve, reject) => {
       db.run(
@@ -698,7 +698,7 @@ app.post('/upload', upload.single('profile_image'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
   }
-  const imageUrl = `http://192.168.0.29:${PORT}/upload/${req.file.filename}`;
+  const imageUrl = `http://192.168.119.162:${PORT}/upload/${req.file.filename}`;
   res.status(200).json({ imageUrl });
 });
 

@@ -32,7 +32,7 @@ class VerificationCodeScreenState extends State<VerificationCodeScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   bool _hasVerified = false; // Nova variável para rastrear se a verificação já foi feita
-  final ApiService _apiService = ApiService(baseUrl: 'http://192.168.1.14:3000');
+  final ApiService _apiService = ApiService(baseUrl: 'http://192.168.119.162:3000');
 
   Future<void> _verifyCode() async {
     if (_hasVerified) {

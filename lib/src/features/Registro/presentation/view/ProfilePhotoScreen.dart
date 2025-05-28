@@ -32,7 +32,7 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
   File? _selectedImageFile;
   String? imageUrl;
   final ImagePicker _picker = ImagePicker();
-  final ApiService _apiService = ApiService(baseUrl: 'http://192.168.1.14:3000');
+  final ApiService _apiService = ApiService(baseUrl: 'http://192.168.119.162:3000');
   final DatabaseHelper _databaseHelper = GetIt.instance<DatabaseHelper>();
 
   void _pickImage() async {
@@ -71,38 +71,30 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
         }
         print('ProfilePhotoScreen: Upload concluído, filePath: $profileImagePath');
       } else {
-        profileImagePath = '';
+        profileImagePath = ''; // Default to empty string if no photo is selected
         print('ProfilePhotoScreen: Nenhuma foto selecionada, prosseguindo sem foto');
       }
 
       final localId = await AuthManager.getLocalId();
       if (localId != null) {
         print('ProfilePhotoScreen: Atualizando banco local para localId: $localId');
-        final db = await _databaseHelper.database;
-        await db.update(
-          'usuarios',
-          {
-            'temFoto': temFoto ? 1 : 0,
-            'profileImagePath': profileImagePath ?? '',
-          },
-          where: 'id = ?',
-          whereArgs: [localId],
-        );
+        await _databaseHelper.updateUser(localId, {
+          'temFoto': temFoto ? 1 : 0,
+          'profileImagePath': profileImagePath,
+        });
         print('ProfilePhotoScreen: Banco local atualizado com sucesso');
       }
 
-      if (profileImagePath != null) {
-        print('ProfilePhotoScreen: Salvando dados da sessão');
-        await AuthManager.saveSessionData(
-          token: await AuthManager.getToken() ?? '',
-          serverId: serverId,
-          localId: localId ?? 0,
-          name: widget.name,
-          email: widget.email,
-          photoUrl: profileImagePath,
-        );
-        print('ProfilePhotoScreen: Dados da sessão salvos');
-      }
+      print('ProfilePhotoScreen: Salvando dados da sessão');
+      await AuthManager.saveSessionData(
+        token: await AuthManager.getToken() ?? '',
+        serverId: serverId,
+        localId: localId ?? 0,
+        name: widget.name,
+        email: widget.email,
+        photoUrl: profileImagePath, // Ensure photoUrl is saved
+      );
+      print('ProfilePhotoScreen: Dados da sessão salvos');
 
       print('ProfilePhotoScreen: Chamando onRegisterComplete');
       widget.onRegisterComplete();
@@ -112,6 +104,9 @@ class ProfilePhotoScreenState extends State<ProfilePhotoScreen> {
         context,
         '/homepage',
             (Route<dynamic> route) => false,
+        arguments: {
+          'photoUrl': profileImagePath, // Pass photoUrl explicitly
+        },
       );
     } catch (e) {
       print('ProfilePhotoScreen: Erro detalhado: $e');

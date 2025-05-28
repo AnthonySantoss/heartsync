@@ -60,14 +60,24 @@ class _HomePageState extends State<HomePage> {
         return;
       }
 
-      final users = await _databaseHelper.getUsuarios();
-      print('HomePage: Usuários encontrados no banco: $users');
-      final userData = users.firstWhere(
-            (u) => u['id'] == userId,
-        orElse: () => throw Exception('Usuário não encontrado no banco de dados'),
-      );
+      final userData = await _databaseHelper.getUsuarioById(userId);
+      if (userData == null) {
+        throw Exception('Usuário não encontrado no banco de dados');
+      }
       user = User.fromDbMap(userData);
       print('HomePage: Usuário carregado: ${user!.name}');
+
+      // Verificar argumentos da rota
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      if (args != null && args['photoUrl'] != null) {
+        user = user!.copyWith(photoUrl: args['photoUrl']);
+        print('HomePage: photoUrl atualizado via argumentos: ${args['photoUrl']}');
+        // Atualizar banco de dados com o novo photoUrl
+        await _databaseHelper.updateUser(userId, {
+          'profileImagePath': args['photoUrl'],
+          'temFoto': args['photoUrl'].isNotEmpty ? 1 : 0,
+        });
+      }
 
       final stats = await _statisticService.getStatisticData(
         userId,
@@ -597,7 +607,7 @@ class _HomePageState extends State<HomePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Recados',
+              'Destaques',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 20,
@@ -606,16 +616,30 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(height: 10),
             Expanded(
-              child: ListView.builder(
-                itemCount: messages.length,
-                itemBuilder: (context, index) {
-                  final message = messages[index];
-                  return _buildRecado(
-                    message['text'],
-                    message['time'],
-                    isOther: message['isOther'],
-                  );
-                },
+              child: PageView(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.asset(
+                      'lib/assets/images/definam.jpg',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.asset(
+                      'lib/assets/images/momentos.jpg',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.asset(
+                      'lib/assets/images/menos.jpg',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -624,15 +648,25 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+
   Widget _buildRecado(String text, String time, {bool isOther = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
           CircleAvatar(
-            child: const Icon(Icons.person, color: Colors.black),
             backgroundColor: Colors.white,
-            radius: 15,
+            backgroundImage: user!.photoUrl != null && user!.photoUrl!.isNotEmpty
+                ? (user!.photoUrl!.startsWith('http')
+                ? NetworkImage(user!.photoUrl!)
+                : FileImage(File(user!.photoUrl!))) as ImageProvider
+                : const NetworkImage('https://via.placeholder.com/150'),
+            onBackgroundImageError: (exception, stackTrace) {
+              print('HomePage: Erro ao carregar imagem de perfil: $exception');
+            },
+            child: user!.photoUrl == null || user!.photoUrl!.isEmpty
+                ? const Icon(Icons.person, color: Colors.black)
+                : null,
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -642,7 +676,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           Text(
-            DateFormat('HH:mm').format(DateTime.parse(time)),
+            time,
             style: const TextStyle(color: Colors.grey),
           ),
         ],

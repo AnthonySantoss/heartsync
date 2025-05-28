@@ -22,12 +22,13 @@ class DatabaseHelper {
     final path = join(databasePath, 'heartsync.db');
     return await openDatabase(
       path,
-      version: 4, // Incrementado para nova migração
+      version: 4,
       onCreate: (db, version) async {
         print('DatabaseHelper: Criando tabelas no banco de dados local');
         await db.execute('''
           CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            serverId TEXT,
             nome TEXT,
             email TEXT UNIQUE,
             dataNascimento TEXT,
@@ -38,7 +39,7 @@ class DatabaseHelper {
             syncDate TEXT,
             updatedAt TEXT,
             streak INTEGER DEFAULT 0,
-            lastStreakDate TEXT -- Nova coluna adicionada
+            lastStreakDate TEXT
           )
         ''');
         await db.execute('''
@@ -75,11 +76,12 @@ class DatabaseHelper {
         print('DatabaseHelper: Tabelas criadas com sucesso');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
-        print('DatabaseHelper: Migrando banco de dados da versão $oldVersion para $newVersion');
+        print('DatabaseHelper: Migrando banco de dados da versao $oldVersion para $newVersion');
         if (oldVersion < 2) {
           await db.execute('''
             CREATE TABLE usuarios_new (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
+              serverId TEXT,
               nome TEXT,
               email TEXT UNIQUE,
               dataNascimento TEXT,
@@ -107,8 +109,9 @@ class DatabaseHelper {
         }
         if (oldVersion < 4) {
           await db.execute('ALTER TABLE usuarios ADD COLUMN lastStreakDate TEXT');
+          await db.execute('ALTER TABLE usuarios ADD COLUMN serverId TEXT');
         }
-        print('DatabaseHelper: Migração concluída');
+        print('DatabaseHelper: Migracao concluida');
       },
     );
   }
@@ -124,25 +127,31 @@ class DatabaseHelper {
     required String dataNascimento,
     required String senha,
     required bool temFoto,
+    String? serverId,
     String? profileImagePath,
     String? anniversaryDate,
     String? syncDate,
     int streak = 0,
-    String? lastStreakDate, // Adicionado para suportar lastStreakDate
+    String? lastStreakDate,
   }) async {
     final db = await database;
-    return await db.insert('usuarios', {
-      'nome': nome,
-      'email': email,
-      'dataNascimento': dataNascimento,
-      'senha': senha,
-      'temFoto': temFoto ? 1 : 0,
-      'profileImagePath': profileImagePath,
-      'anniversaryDate': anniversaryDate,
-      'syncDate': syncDate,
-      'streak': streak,
-      'lastStreakDate': lastStreakDate, // Adicionado
-    });
+    return await db.insert(
+      'usuarios',
+      {
+        'serverId': serverId,
+        'nome': nome,
+        'email': email,
+        'dataNascimento': dataNascimento,
+        'senha': senha,
+        'temFoto': temFoto ? 1 : 0,
+        'profileImagePath': profileImagePath ?? '',
+        'anniversaryDate': anniversaryDate,
+        'syncDate': syncDate,
+        'streak': streak,
+        'lastStreakDate': lastStreakDate,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<bool> emailExists(String email) async {
@@ -160,30 +169,81 @@ class DatabaseHelper {
     return await db.query('usuarios');
   }
 
+  Future<Map<String, dynamic>?> getUsuarioById(int id) async {
+    final db = await database;
+    final result = await db.query(
+      'usuarios',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    return result.isNotEmpty ? result.first : null;
+  }
+
+  Future<void> updateUser(int id, Map<String, dynamic> data) async {
+    final db = await database;
+    await db.update(
+      'usuarios',
+      data,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   Future<void> saveUserProfile(Map<String, dynamic> data) async {
     final db = await database;
-    await db.insert(
+    final email = data['email'] as String?;
+    if (email == null) {
+      throw Exception('Email e obrigatorio para salvar o perfil do usuario');
+    }
+
+    final existingUser = await db.query(
       'usuarios',
-      {
-        'nome': data['nome'],
-        'email': data['email'],
-        'dataNascimento': data['dataNascimento'],
-        'temFoto': data['temFoto'] == true ? 1 : 0,
-        'profileImagePath': data['profileImagePath'],
-        'heartcode': data['heartcode'],
-        'streak': data['streak'] ?? 0,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
+      where: 'email = ?',
+      whereArgs: [email],
+      limit: 1,
     );
+
+    if (existingUser.isNotEmpty) {
+      await db.update(
+        'usuarios',
+        {
+          'serverId': data['serverId'],
+          'nome': data['nome'],
+          'email': data['email'],
+          'dataNascimento': data['dataNascimento'],
+          'temFoto': data['temFoto'] == true ? 1 : 0,
+          'profileImagePath': data['profileImagePath'] ?? '',
+          'anniversaryDate': data['anniversaryDate'],
+          'syncDate': data['syncDate'],
+          'streak': data['streak'] ?? 0,
+        },
+        where: 'email = ?',
+        whereArgs: [email],
+      );
+    } else {
+      await db.insert(
+        'usuarios',
+        {
+          'serverId': data['serverId'],
+          'nome': data['nome'],
+          'email': data['email'],
+          'dataNascimento': data['dataNascimento'],
+          'temFoto': data['temFoto'] == true ? 1 : 0,
+          'profileImagePath': data['profileImagePath'] ?? '',
+          'anniversaryDate': data['anniversaryDate'],
+          'syncDate': data['syncDate'],
+          'streak': data['streak'] ?? 0,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
   }
 
   Future<Map<String, dynamic>?> getCachedUserProfile() async {
     final db = await database;
     final result = await db.query('usuarios', limit: 1);
-    if (result.isNotEmpty) {
-      return result.first;
-    }
-    return null;
+    return result.isNotEmpty ? result.first : null;
   }
 
   Future<List<Map<String, dynamic>>> getUsoCelularUltimaSemana(int userId) async {
