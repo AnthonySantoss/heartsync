@@ -7,13 +7,13 @@ const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt'); // Adicionado para hash de senhas
-const validator = require('validator'); // Adicionado para validação de email
+const bcrypt = require('bcrypt');
+const validator = require('validator');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || '8Jkl6j6c6sae';
-const SALT_ROUNDS = 10; // Para bcrypt
+const SALT_ROUNDS = 10;
 
 // Configuração do banco de dados SQLite
 const db = new sqlite3.Database('./heartsync.db', (err) => {
@@ -61,6 +61,7 @@ function initializeDatabase() {
         idUsuario1 INTEGER NOT NULL,
         idUsuario2 INTEGER NOT NULL,
         codigoConexao TEXT UNIQUE NOT NULL,
+        anniversaryDate TEXT,
         createdAt TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
         FOREIGN KEY (idUsuario1) REFERENCES users (id) ON DELETE CASCADE,
         FOREIGN KEY (idUsuario2) REFERENCES users (id) ON DELETE CASCADE
@@ -117,6 +118,16 @@ function initializeDatabase() {
         }
       }
     );
+
+    // Migração para adicionar anniversaryDate à tabela couples
+    db.run(
+      `ALTER TABLE couples ADD COLUMN anniversaryDate TEXT`,
+      (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+          console.error('Erro ao adicionar coluna anniversaryDate:', err.message);
+        }
+      }
+    );
   });
 }
 
@@ -139,7 +150,7 @@ app.use(
       'http://localhost',
       'http://localhost:8081',
       'http://10.0.2.2:3000',
-      'http://192.168.0.29:3000', // Adicionado para suportar conexões do Flutter
+      'http://192.168.1.14:3000',
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -341,6 +352,7 @@ app.post('/auth/verify-code', async (req, res) => {
   }
 });
 
+// Rota: /roulette/save
 app.post('/roulette/save', authenticateJWT, async (req, res) => {
   const { userId, dataRoleta, atividade, blockTime, proximaRoleta } = req.body;
   if (!userId || !dataRoleta || !atividade || !blockTime || !proximaRoleta) {
@@ -366,6 +378,121 @@ app.post('/roulette/save', authenticateJWT, async (req, res) => {
   } catch (err) {
     console.error('Erro ao salvar atividade da roleta:', err.message, err.stack);
     res.status(500).json({ error: 'Erro ao salvar atividade da roleta' });
+  }
+});
+
+// Rota: /users/couple
+app.get('/users/couple', authenticateJWT, async (req, res) => {
+  try {
+    // Buscar usuário logado
+    const user = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT id, nome, email, dataNascimento, heartcode, profileImagePath, conectado
+         FROM users WHERE id = ?`,
+        [req.user.id],
+        (err, row) => (err ? reject(err) : resolve(row))
+      );
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    if (!user.conectado) {
+      return res.status(400).json({ error: 'Usuário não está conectado a um parceiro' });
+    }
+
+    // Buscar dados do casal
+    const couple = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT id, idUsuario1, idUsuario2, anniversaryDate, createdAt
+         FROM couples
+         WHERE idUsuario1 = ? OR idUsuario2 = ?`,
+        [req.user.id, req.user.id],
+        (err, row) => (err ? reject(err) : resolve(row))
+      );
+    });
+
+    if (!couple) {
+      return res.status(404).json({ error: 'Casal não encontrado' });
+    }
+
+    // Determinar ID do parceiro
+    const partnerId = couple.idUsuario1 === req.user.id ? couple.idUsuario2 : couple.idUsuario1;
+
+    // Buscar usuário parceiro
+    const partner = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT id, nome, email, dataNascimento, heartcode, profileImagePath
+         FROM users WHERE id = ?`,
+        [partnerId],
+        (err, row) => (err ? reject(err) : resolve(row))
+      );
+    });
+
+    if (!partner) {
+      return res.status(404).json({ error: 'Parceiro não encontrado' });
+    }
+
+    // Formatar resposta
+    res.status(200).json({
+      user1: {
+        id: user.id,
+        nome: user.nome,
+        dataNascimento: user.dataNascimento,
+        heartcode: user.heartcode,
+        profileImagePath: user.profileImagePath,
+      },
+      user2: {
+        id: partner.id,
+        nome: partner.nome,
+        dataNascimento: partner.dataNascimento,
+        heartcode: partner.heartcode,
+        profileImagePath: partner.profileImagePath,
+      },
+      couple: {
+        id: couple.id,
+        anniversaryDate: couple.anniversaryDate,
+        syncDate: couple.createdAt,
+      },
+    });
+  } catch (err) {
+    console.error('Erro ao buscar dados do casal:', err.message, err.stack);
+    res.status(500).json({ error: 'Erro ao buscar dados do casal' });
+  }
+});
+
+app.put('/couples/update-anniversary', authenticateJWT, async (req, res) => {
+  const { anniversaryDate } = req.body;
+  if (!anniversaryDate) {
+    return res.status(400).json({ error: 'Data de aniversário é obrigatória' });
+  }
+
+  try {
+    const couple = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT id FROM couples WHERE idUsuario1 = ? OR idUsuario2 = ?`,
+        [req.user.id, req.user.id],
+        (err, row) => (err ? reject(err) : resolve(row))
+      );
+    });
+
+    if (!couple) {
+      return res.status(404).json({ error: 'Casal não encontrado' });
+    }
+
+    await new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE couples SET anniversaryDate = ? WHERE id = ?`,
+        [anniversaryDate, couple.id],
+        (err) => (err ? reject(err) : resolve())
+      );
+    });
+
+    res.status(200).json({ message: 'Data de aniversário atualizada com sucesso' });
+  } catch (err) {
+    console.error('Erro ao atualizar data de aniversário:', err.message, err.stack);
+    res.status(500).json({ error: 'Erro ao atualizar data de aniversário' });
   }
 });
 
