@@ -6,11 +6,14 @@ const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
 const nodemailer = require('nodemailer');
-const jwt = require('jsonwebtoken'); // Adicionado
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const validator = require('validator');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || '8Jkl6j6c6sae';
+const SALT_ROUNDS = 10;
 
 // Configuração do banco de dados SQLite
 const db = new sqlite3.Database('./heartsync.db', (err) => {
@@ -42,7 +45,9 @@ function initializeDatabase() {
         profileImagePath TEXT,
         heartcode TEXT UNIQUE NOT NULL,
         conectado BOOLEAN DEFAULT FALSE,
-        createdAt TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now'))
+        createdAt TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+        streak INTEGER DEFAULT 0,
+        lastStreakDate TEXT
       )`,
       (err) => {
         if (err) console.error('Erro ao criar tabela users:', err.message);
@@ -56,6 +61,7 @@ function initializeDatabase() {
         idUsuario1 INTEGER NOT NULL,
         idUsuario2 INTEGER NOT NULL,
         codigoConexao TEXT UNIQUE NOT NULL,
+        anniversaryDate TEXT,
         createdAt TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
         FOREIGN KEY (idUsuario1) REFERENCES users (id) ON DELETE CASCADE,
         FOREIGN KEY (idUsuario2) REFERENCES users (id) ON DELETE CASCADE
@@ -78,12 +84,59 @@ function initializeDatabase() {
         else console.log('Tabela verification_codes criada ou já existe');
       }
     );
+
+    db.run(
+      `CREATE TABLE IF NOT EXISTS roleta (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        idUsuario INTEGER NOT NULL,
+        dataRoleta TEXT NOT NULL,
+        atividade TEXT NOT NULL,
+        blockTime TEXT NOT NULL,
+        proximaRoleta TEXT NOT NULL,
+        FOREIGN KEY (idUsuario) REFERENCES users (id) ON DELETE CASCADE
+      )`,
+      (err) => {
+        if (err) console.error('Erro ao criar tabela roleta:', err.message);
+        else console.log('Tabela roleta criada ou já existe');
+      }
+    );
+
+    // Migração para adicionar streak e lastStreakDate
+    db.run(
+      `ALTER TABLE users ADD COLUMN streak INTEGER DEFAULT 0`,
+      (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+          console.error('Erro ao adicionar coluna streak:', err.message);
+        }
+      }
+    );
+    db.run(
+      `ALTER TABLE users ADD COLUMN lastStreakDate TEXT`,
+      (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+          console.error('Erro ao adicionar coluna lastStreakDate:', err.message);
+        }
+      }
+    );
+
+    // Migração para adicionar anniversaryDate à tabela couples
+    db.run(
+      `ALTER TABLE couples ADD COLUMN anniversaryDate TEXT`,
+      (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+          console.error('Erro ao adicionar coluna anniversaryDate:', err.message);
+        }
+      }
+    );
   });
 }
 
 // Configuração do transporte de e-mail
 const transporter = nodemailer.createTransport({
   service: process.env.EMAIL_SERVICE || 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
@@ -91,11 +144,18 @@ const transporter = nodemailer.createTransport({
 });
 
 // Configurações do Express
-app.use(cors({
-  origin: ['http://localhost', 'http://10.0.2.2', 'http://localhost:8081'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.use(
+  cors({
+    origin: [
+      'http://localhost',
+      'http://localhost:8081',
+      'http://10.0.2.2:3000',
+      'http://192.168.1.14:3000',
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 app.use(express.json());
 
 // Configuração do Multer para uploads
@@ -106,10 +166,10 @@ if (!fs.existsSync(uploadDir)) {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     const ext = path.extname(file.originalname);
     cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
-  }
+  },
 });
 const upload = multer({ storage });
 
@@ -125,7 +185,7 @@ const authenticateJWT = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (err) {
-    console.error('Erro ao verificar JWT:', err.message);
+    console.error('Erro ao verificar JWT:', err.message, err.stack);
     return res.status(403).json({ error: 'Token inválido ou expirado' });
   }
 };
@@ -136,21 +196,22 @@ app.post('/auth/register', async (req, res) => {
   if (!nome || !email || !dataNascimento || !senha) {
     return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (!validator.isEmail(email)) {
     return res.status(400).json({ error: 'E-mail inválido' });
   }
   if (senha.length < 6) {
     return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres' });
   }
 
-  const heartcode = generateHeartCode();
   try {
+    const hashedPassword = await bcrypt.hash(senha, SALT_ROUNDS);
+    const heartcode = generateHeartCode();
     const result = await new Promise((resolve, reject) => {
       db.run(
-        `INSERT INTO users (nome, email, dataNascimento, senha, temFoto, profileImagePath, heartcode)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [nome, email, dataNascimento, senha, false, null, heartcode],
-        function(err) {
+        `INSERT INTO users (nome, email, dataNascimento, senha, temFoto, profileImagePath, heartcode, streak, lastStreakDate)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [nome, email, dataNascimento, hashedPassword, false, null, heartcode, 0, null],
+        function (err) {
           if (err) reject(err);
           else resolve(this.lastID);
         }
@@ -159,8 +220,8 @@ app.post('/auth/register', async (req, res) => {
 
     const token = jwt.sign({ id: result, email }, JWT_SECRET, { expiresIn: '7d' });
     const response = {
-      user: { _id: result, nome, email, heartcode },
-      token
+      user: { _id: result, nome, email, heartcode, streak: 0 },
+      token,
     };
     console.log('Usuário registrado:', response);
     res.status(201).json(response);
@@ -168,83 +229,8 @@ app.post('/auth/register', async (req, res) => {
     if (err.message.includes('UNIQUE constraint failed: users.email')) {
       return res.status(400).json({ error: 'Email já registrado' });
     }
-    console.error('Erro ao registrar usuário:', err);
+    console.error('Erro ao registrar usuário:', err.message, err.stack);
     res.status(500).json({ error: 'Erro ao registrar usuário' });
-  }
-});
-
-// Novo endpoint para salvar atividade da roleta
-app.post('/roulette/save', async (req, res) => {
-  const { userId, dataRoleta, atividade, blockTime, proximaRoleta } = req.body;
-  if (!userId || !dataRoleta || !atividade || !blockTime || !proximaRoleta) {
-    return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
-  }
-
-  try {
-    const result = await new Promise((resolve, reject) => {
-      db.run(
-        `INSERT INTO roleta (idUsuario, dataRoleta, atividade, blockTime, proximaRoleta)
-         VALUES (?, ?, ?, ?, ?)`,
-        [userId, dataRoleta, atividade, blockTime, proximaRoleta],
-        function(err) {
-          if (err) reject(err);
-          else resolve(this.lastID);
-        }
-      );
-    });
-    res.status(201).json({ id: result, message: 'Atividade da roleta salva com sucesso' });
-  } catch (err) {
-    console.error('Erro ao salvar atividade da roleta:', err);
-    res.status(500).json({ error: 'Erro ao salvar atividade da roleta' });
-  }
-});
-
-// Novo endpoint para atualizar a sequência (streak)
-app.post('/roulette/update-streak', async (req, res) => {
-  const { userId, streak } = req.body;
-  if (!userId || streak == null) {
-    return res.status(400).json({ error: 'userId e streak são obrigatórios' });
-  }
-
-  try {
-    await new Promise((resolve, reject) => {
-      db.run(
-        `UPDATE users SET streak = ? WHERE id = ?`,
-        [streak, userId],
-        function(err) {
-          if (err) reject(err);
-          else resolve();
-        }
-      );
-    });
-    res.status(200).json({ message: 'Sequência atualizada com sucesso' });
-  } catch (err) {
-    console.error('Erro ao atualizar sequência:', err);
-    res.status(500).json({ error: 'Erro ao atualizar sequência' });
-  }
-});
-
-// Novo endpoint para recuperar a sequência atual
-app.get('/roulette/streak/:userId', async (req, res) => {
-  const { userId } = req.params;
-  try {
-    const result = await new Promise((resolve, reject) => {
-      db.get(
-        `SELECT streak FROM users WHERE id = ?`,
-        [userId],
-        (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        }
-      );
-    });
-    if (!result) {
-      return res.status(404).json({ error: 'Usuário não encontrado' });
-    }
-    res.status(200).json({ streak: result.streak || 0 });
-  } catch (err) {
-    console.error('Erro ao recuperar sequência:', err);
-    res.status(500).json({ error: 'Erro ao recuperar sequência' });
   }
 });
 
@@ -253,13 +239,14 @@ app.post('/auth/login', async (req, res) => {
   if (!email || !password) {
     return res.status(400).json({ error: 'E-mail e senha são obrigatórios' });
   }
+  if (!validator.isEmail(email)) {
+    return res.status(400).json({ error: 'E-mail inválido' });
+  }
 
   try {
     const user = await new Promise((resolve, reject) => {
-      db.get(
-        `SELECT * FROM users WHERE email = ? AND senha = ?`,
-        [email, password],
-        (err, row) => err ? reject(err) : resolve(row)
+      db.get(`SELECT * FROM users WHERE email = ?`, [email], (err, row) =>
+        err ? reject(err) : resolve(row)
       );
     });
 
@@ -267,32 +254,46 @@ app.post('/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
+    const isPasswordValid = await bcrypt.compare(password, user.senha);
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Credenciais inválidas' });
+    }
+
     const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
     res.status(200).json({
-      user: { _id: user.id, nome: user.nome, email: user.email, heartcode: user.heartcode },
-      token
+      user: {
+        _id: user.id,
+        nome: user.nome,
+        email: user.email,
+        heartcode: user.heartcode,
+        streak: user.streak || 0,
+        lastStreakDate: user.lastStreakDate,
+      },
+      token,
     });
   } catch (err) {
-    console.error('Erro ao fazer login:', err);
+    console.error('Erro ao fazer login:', err.message, err.stack);
     res.status(500).json({ error: 'Erro ao fazer login' });
   }
 });
 
 app.post('/send-verification-code', async (req, res) => {
   const { email } = req.body;
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (!email || !validator.isEmail(email)) {
     return res.status(400).json({ error: 'E-mail inválido' });
   }
 
-  const verificationCode = Math.floor(100000 + Math.random() * 900000).toString().substring(0, 6);
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // Expira em 10 minutos
+  const verificationCode = Math.floor(100000 + Math.random() * 900000)
+    .toString()
+    .padStart(6, '0');
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
   try {
     await new Promise((resolve, reject) => {
       db.run(
         `INSERT INTO verification_codes (email, code, expiresAt) VALUES (?, ?, ?)`,
         [email, verificationCode, expiresAt],
-        (err) => err ? reject(err) : resolve()
+        (err) => (err ? reject(err) : resolve())
       );
     });
 
@@ -300,71 +301,284 @@ app.post('/send-verification-code', async (req, res) => {
       from: process.env.EMAIL_USER,
       to: email,
       subject: 'Código de Verificação - HeartSync',
-      text: `Seu código de verificação é: ${verificationCode}. Digite-o no aplicativo para continuar o registro. Validade: 10 minutos.`,
+      text: `Seu código de verificação é: ${verificationCode}. Digite-o no aplicativo para continuar o registro.`,
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`Código ${verificationCode} enviado para ${email} às ${new Date().toLocaleString()}`);
-    res.status(200).json({ message: 'Código de verificação enviado' });
+    console.log(`Código ${verificationCode} enviado para ${email}`);
+    res.status(200).json({ message: 'Success' });
   } catch (err) {
-    console.error('Erro ao enviar e-mail:', err);
-    res.status(500).json({ error: 'Erro ao enviar código de verificação' });
+    console.error('Erro ao enviar código:', err.message, err.stack);
+    res.status(500).json({ error: 'Failed to send verification code' });
   }
 });
 
 app.post('/auth/verify-code', async (req, res) => {
   const { email, code } = req.body;
-  if (!email || !code) {
-    return res.status(400).json({ error: 'E-mail e código são obrigatórios' });
+  if (!email || !code || !validator.isEmail(email)) {
+    return res.status(400).json({ error: 'E-mail e código são obrigatórios e devem ser válidos' });
   }
 
-  console.log(`Verificação: Recebida requisição para verificar código para e-mail: ${email}, código: ${code}`);
-
   try {
-    // Log para verificar o conteúdo da tabela
-    const allCodes = await new Promise((resolve, reject) => {
-      db.all(`SELECT * FROM verification_codes WHERE email = ?`, [email], (err, rows) => {
-        err ? reject(err) : resolve(rows);
-      });
-    });
-    console.log(`Verificação: Códigos armazenados para ${email}:`, allCodes);
-
     const result = await new Promise((resolve, reject) => {
       db.get(
         `SELECT * FROM verification_codes WHERE email = ? AND code = ?`,
         [email, code],
-        (err, row) => err ? reject(err) : resolve(row)
+        (err, row) => (err ? reject(err) : resolve(row))
       );
     });
 
     if (!result) {
-      console.log(`Verificação: Código inválido para e-mail: ${email}, código: ${code}`);
       return res.status(400).json({ error: 'Código inválido' });
     }
 
     const expiresAt = new Date(result.expiresAt);
     if (expiresAt < new Date()) {
-      console.log(`Verificação: Código expirado para e-mail: ${email}, código: ${code}, expiresAt: ${expiresAt}`);
       return res.status(400).json({ error: 'Código expirado' });
     }
 
-    // Remover o código após a validação
     await new Promise((resolve, reject) => {
-      db.run(`DELETE FROM verification_codes WHERE email = ? AND code = ?`, [email, code], (err) => err ? reject(err) : resolve());
+      db.run(
+        `DELETE FROM verification_codes WHERE email = ? AND code = ?`,
+        [email, code],
+        (err) => (err ? reject(err) : resolve())
+      );
     });
 
-    console.log(`Verificação: Código verificado com sucesso para e-mail: ${email}, código: ${code}`);
     res.status(200).json({ message: 'Código verificado com sucesso' });
   } catch (err) {
-    console.error('Erro ao verificar código:', err);
+    console.error('Erro ao verificar código:', err.message, err.stack);
     res.status(500).json({ error: 'Erro ao verificar código' });
+  }
+});
+
+// Rota: /roulette/save
+app.post('/roulette/save', authenticateJWT, async (req, res) => {
+  const { userId, dataRoleta, atividade, blockTime, proximaRoleta } = req.body;
+  if (!userId || !dataRoleta || !atividade || !blockTime || !proximaRoleta) {
+    return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
+  }
+  if (req.user.id != userId) {
+    return res.status(403).json({ error: 'Acesso não autorizado' });
+  }
+
+  try {
+    const result = await new Promise((resolve, reject) => {
+      db.run(
+        `INSERT INTO roleta (idUsuario, dataRoleta, atividade, blockTime, proximaRoleta)
+         VALUES (?, ?, ?, ?, ?)`,
+        [userId, dataRoleta, atividade, blockTime, proximaRoleta],
+        function (err) {
+          if (err) reject(err);
+          else resolve(this.lastID);
+        }
+      );
+    });
+    res.status(201).json({ id: result, message: 'Atividade da roleta salva com sucesso' });
+  } catch (err) {
+    console.error('Erro ao salvar atividade da roleta:', err.message, err.stack);
+    res.status(500).json({ error: 'Erro ao salvar atividade da roleta' });
+  }
+});
+
+// Rota: /users/couple
+app.get('/users/couple', authenticateJWT, async (req, res) => {
+  try {
+    // Buscar usuário logado
+    const user = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT id, nome, email, dataNascimento, heartcode, profileImagePath, conectado
+         FROM users WHERE id = ?`,
+        [req.user.id],
+        (err, row) => (err ? reject(err) : resolve(row))
+      );
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    if (!user.conectado) {
+      return res.status(400).json({ error: 'Usuário não está conectado a um parceiro' });
+    }
+
+    // Buscar dados do casal
+    const couple = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT id, idUsuario1, idUsuario2, anniversaryDate, createdAt
+         FROM couples
+         WHERE idUsuario1 = ? OR idUsuario2 = ?`,
+        [req.user.id, req.user.id],
+        (err, row) => (err ? reject(err) : resolve(row))
+      );
+    });
+
+    if (!couple) {
+      return res.status(404).json({ error: 'Casal não encontrado' });
+    }
+
+    // Determinar ID do parceiro
+    const partnerId = couple.idUsuario1 === req.user.id ? couple.idUsuario2 : couple.idUsuario1;
+
+    // Buscar usuário parceiro
+    const partner = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT id, nome, email, dataNascimento, heartcode, profileImagePath
+         FROM users WHERE id = ?`,
+        [partnerId],
+        (err, row) => (err ? reject(err) : resolve(row))
+      );
+    });
+
+    if (!partner) {
+      return res.status(404).json({ error: 'Parceiro não encontrado' });
+    }
+
+    // Formatar resposta
+    res.status(200).json({
+      user1: {
+        id: user.id,
+        nome: user.nome,
+        dataNascimento: user.dataNascimento,
+        heartcode: user.heartcode,
+        profileImagePath: user.profileImagePath,
+      },
+      user2: {
+        id: partner.id,
+        nome: partner.nome,
+        dataNascimento: partner.dataNascimento,
+        heartcode: partner.heartcode,
+        profileImagePath: partner.profileImagePath,
+      },
+      couple: {
+        id: couple.id,
+        anniversaryDate: couple.anniversaryDate,
+        syncDate: couple.createdAt,
+      },
+    });
+  } catch (err) {
+    console.error('Erro ao buscar dados do casal:', err.message, err.stack);
+    res.status(500).json({ error: 'Erro ao buscar dados do casal' });
+  }
+});
+
+app.put('/couples/update-anniversary', authenticateJWT, async (req, res) => {
+  const { anniversaryDate } = req.body;
+  if (!anniversaryDate) {
+    return res.status(400).json({ error: 'Data de aniversário é obrigatória' });
+  }
+
+  try {
+    const couple = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT id FROM couples WHERE idUsuario1 = ? OR idUsuario2 = ?`,
+        [req.user.id, req.user.id],
+        (err, row) => (err ? reject(err) : resolve(row))
+      );
+    });
+
+    if (!couple) {
+      return res.status(404).json({ error: 'Casal não encontrado' });
+    }
+
+    await new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE couples SET anniversaryDate = ? WHERE id = ?`,
+        [anniversaryDate, couple.id],
+        (err) => (err ? reject(err) : resolve())
+      );
+    });
+
+    res.status(200).json({ message: 'Data de aniversário atualizada com sucesso' });
+  } catch (err) {
+    console.error('Erro ao atualizar data de aniversário:', err.message, err.stack);
+    res.status(500).json({ error: 'Erro ao atualizar data de aniversário' });
+  }
+});
+
+app.post('/roulette/update-streak', authenticateJWT, async (req, res) => {
+  const { userId, streak, lastStreakDate } = req.body;
+  if (!userId || streak == null) {
+    return res.status(400).json({ error: 'userId e streak são obrigatórios' });
+  }
+  if (req.user.id != userId) {
+    return res.status(403).json({ error: 'Acesso não autorizado' });
+  }
+
+  try {
+    await new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE users SET streak = ?, lastStreakDate = ? WHERE id = ?`,
+        [streak, lastStreakDate, userId],
+        function (err) {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+    res.status(200).json({ message: 'Sequência atualizada com sucesso', streak, lastStreakDate });
+  } catch (err) {
+    console.error('Erro ao atualizar sequência:', err.message, err.stack);
+    res.status(500).json({ error: 'Erro ao atualizar sequência' });
+  }
+});
+
+app.get('/roulette/streak/:userId', authenticateJWT, async (req, res) => {
+  const { userId } = req.params;
+  if (req.user.id != userId) {
+    return res.status(403).json({ error: 'Acesso não autorizado' });
+  }
+  try {
+    const result = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT streak, lastStreakDate FROM users WHERE id = ?`,
+        [userId],
+        (err, row) => (err ? reject(err) : resolve(row))
+      );
+    });
+    if (!result) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+    res.status(200).json({ streak: result.streak || 0, lastStreakDate: result.lastStreakDate });
+  } catch (err) {
+    console.error('Erro ao recuperar sequência:', err.message, err.stack);
+    res.status(500).json({ error: 'Erro ao recuperar sequência' });
+  }
+});
+
+app.post('/roulette/reset-streak', authenticateJWT, async (req, res) => {
+  const { userId } = req.body;
+  if (!userId) {
+    return res.status(400).json({ error: 'userId é obrigatório' });
+  }
+  if (req.user.id != userId) {
+    return res.status(403).json({ error: 'Acesso não autorizado' });
+  }
+
+  try {
+    await new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE users SET streak = 0, lastStreakDate = NULL WHERE id = ?`,
+        [userId],
+        function (err) {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+    res.status(200).json({ message: 'Sequência resetada com sucesso' });
+  } catch (err) {
+    console.error('Erro ao resetar sequência:', err.message, err.stack);
+    res.status(500).json({ error: 'Erro ao resetar sequência' });
   }
 });
 
 app.get('/users/me', authenticateJWT, async (req, res) => {
   try {
     const user = await new Promise((resolve, reject) => {
-      db.get(`SELECT * FROM users WHERE id = ?`, [req.user.id], (err, row) => err ? reject(err) : resolve(row));
+      db.get(`SELECT * FROM users WHERE id = ?`, [req.user.id], (err, row) =>
+        err ? reject(err) : resolve(row)
+      );
     });
     if (!user) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -377,10 +591,12 @@ app.get('/users/me', authenticateJWT, async (req, res) => {
       temFoto: user.temFoto,
       profileImagePath: user.profileImagePath,
       heartcode: user.heartcode,
-      conectado: user.conectado
+      conectado: user.conectado,
+      streak: user.streak || 0,
+      lastStreakDate: user.lastStreakDate,
     });
   } catch (err) {
-    console.error('Erro ao buscar perfil:', err);
+    console.error('Erro ao buscar perfil:', err.message, err.stack);
     res.status(500).json({ error: 'Erro ao buscar perfil' });
   }
 });
@@ -396,12 +612,12 @@ app.put('/users/:id', authenticateJWT, async (req, res) => {
       db.run(
         `UPDATE users SET nome = ?, dataNascimento = ? WHERE id = ?`,
         [nome, dataNascimento, id],
-        (err) => err ? reject(err) : resolve()
+        (err) => (err ? reject(err) : resolve())
       );
     });
     res.status(200).json({ message: 'Perfil atualizado com sucesso' });
   } catch (err) {
-    console.error('Erro ao atualizar perfil:', err);
+    console.error('Erro ao atualizar perfil:', err.message, err.stack);
     res.status(500).json({ error: 'Erro ao atualizar perfil' });
   }
 });
@@ -414,19 +630,19 @@ app.post('/users/:id/avatar', authenticateJWT, upload.single('avatarFile'), asyn
   if (!req.file) {
     return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
   }
-  const imageUrl = `http://10.0.2.2:${PORT}/upload/${req.file.filename}`;
+  const imageUrl = `http://192.168.0.29:${PORT}/upload/${req.file.filename}`;
   try {
     await new Promise((resolve, reject) => {
       db.run(
         `UPDATE users SET temFoto = ?, profileImagePath = ? WHERE id = ?`,
         [true, imageUrl, id],
-        (err) => err ? reject(err) : resolve()
+        (err) => (err ? reject(err) : resolve())
       );
     });
     res.status(200).json({ filePath: imageUrl });
   } catch (err) {
-    console.error('Erro ao atualizar foto de perfil:', err);
-    res.status(500).json({ error: 'Erro ao atualizar foto de perfil' });
+    console.error('Erro ao atualizar foto:', err.message, err.stack);
+    res.status(500).json({ error: 'Erro ao atualizar foto' });
   }
 });
 
@@ -437,11 +653,11 @@ app.delete('/users/:id', authenticateJWT, async (req, res) => {
   }
   try {
     await new Promise((resolve, reject) => {
-      db.run(`DELETE FROM users WHERE id = ?`, [id], (err) => err ? reject(err) : resolve());
+      db.run(`DELETE FROM users WHERE id = ?`, [id], (err) => (err ? reject(err) : resolve()));
     });
     res.status(200).json({ message: 'Conta deletada com sucesso' });
   } catch (err) {
-    console.error('Erro ao deletar conta:', err);
+    console.error('Erro ao deletar conta:', err.message, err.stack);
     res.status(500).json({ error: 'Erro ao deletar conta' });
   }
 });
@@ -451,7 +667,7 @@ app.post('/validate-heartcode', authenticateJWT, async (req, res) => {
   try {
     const [user, partner] = await Promise.all([
       getUserByHeartCode(userHeartCode),
-      getUserByHeartCode(partnerHeartCode)
+      getUserByHeartCode(partnerHeartCode),
     ]);
     if (!user || !partner) {
       return res.status(404).json({ error: 'Usuário ou parceiro não encontrado' });
@@ -459,21 +675,21 @@ app.post('/validate-heartcode', authenticateJWT, async (req, res) => {
     if (user.conectado || partner.conectado) {
       return res.status(400).json({ error: 'Um dos usuários já está conectado' });
     }
-    const codigoConexao = `CONN${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+    const code = `CONN${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
     await new Promise((resolve, reject) => {
       db.run(
         `INSERT INTO couples (idUsuario1, idUsuario2, codigoConexao) VALUES (?, ?, ?)`,
-        [user.id, partner.id, codigoConexao],
-        (err) => err ? reject(err) : resolve()
+        [user.id, partner.id, code],
+        (err) => (err ? reject(err) : resolve())
       );
     });
     await Promise.all([
       updateUserConnectionStatus(user.id, true),
-      updateUserConnectionStatus(partner.id, true)
+      updateUserConnectionStatus(partner.id, true),
     ]);
-    res.status(200).json({ codigoConexao });
+    res.status(200).json({ code });
   } catch (err) {
-    console.error('Erro ao validar heartcode:', err);
+    console.error('Erro ao validar heartcode:', err.message, err.stack);
     res.status(500).json({ error: 'Erro ao validar heartcode' });
   }
 });
@@ -482,13 +698,15 @@ app.post('/upload', upload.single('profile_image'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
   }
-  const imageUrl = `http://10.0.2.2:${PORT}/upload/${req.file.filename}`;
+  const imageUrl = `http://192.168.0.29:${PORT}/upload/${req.file.filename}`;
   res.status(200).json({ imageUrl });
 });
 
 // Funções auxiliares
 function generateHeartCode() {
-  const numbers = Math.floor(1000000 + Math.random() * 9000000).toString().substring(0, 7);
+  const numbers = Math.floor(1000000 + Math.random() * 9000000)
+    .toString()
+    .padStart(7, '0');
   const letters = String.fromCharCode(
     65 + Math.floor(Math.random() * 26),
     65 + Math.floor(Math.random() * 26)
@@ -501,7 +719,7 @@ function getUserByHeartCode(heartcode) {
     db.get(
       `SELECT * FROM users WHERE heartcode = ?`,
       [heartcode],
-      (err, row) => err ? reject(err) : resolve(row)
+      (err, row) => (err ? reject(err) : resolve(row))
     );
   });
 }
@@ -511,7 +729,7 @@ function updateUserConnectionStatus(userId, status) {
     db.run(
       `UPDATE users SET conectado = ? WHERE id = ?`,
       [status, userId],
-      (err) => err ? reject(err) : resolve()
+      (err) => (err ? reject(err) : resolve())
     );
   });
 }
@@ -521,10 +739,10 @@ app.use('/upload', express.static(path.join(__dirname, uploadDir)));
 
 // Middleware de erro
 app.use((err, req, res, next) => {
-  console.error('Erro no servidor:', err);
+  console.error('Erro no servidor:', err.message, err.stack);
   res.status(500).json({
     error: 'Falha no servidor. Tente novamente mais tarde.',
-    details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    details: process.env.NODE_ENV === 'development' ? err.message : undefined,
   });
 });
 

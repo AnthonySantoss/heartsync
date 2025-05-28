@@ -22,7 +22,7 @@ class DatabaseHelper {
     final path = join(databasePath, 'heartsync.db');
     return await openDatabase(
       path,
-      version: 3, // Incrementado para a nova migração
+      version: 3,
       onCreate: (db, version) async {
         print('DatabaseHelper: Criando tabelas no banco de dados local');
         await db.execute('''
@@ -112,6 +112,32 @@ class DatabaseHelper {
     return this;
   }
 
+  Future<void> saveUserProfile(Map<String, dynamic> data) async {
+    final db = await database;
+    await db.insert(
+      'usuarios',
+      {
+        'nome': data['nome'],
+        'email': data['email'],
+        'dataNascimento': data['dataNascimento'],
+        'temFoto': data['temFoto'] == true ? 1 : 0,
+        'profileImagePath': data['profileImagePath'],
+        'heartcode': data['heartcode'],
+        'streak': data['streak'] ?? 0,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<Map<String, dynamic>?> getCachedUserProfile() async {
+    final db = await database;
+    final result = await db.query('usuarios', limit: 1);
+    if (result.isNotEmpty) {
+      return result.first;
+    }
+    return null;
+  }
+
   Future<int> insertUsuario({
     required String nome,
     required String email,
@@ -155,13 +181,11 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> getUsoCelularUltimaSemana(int userId) async {
     final db = await database;
     final startDate = DateTime.now().subtract(Duration(days: 6)).toIso8601String().split('T')[0];
-    return
-
-      await db.query(
-        'uso_celular',
-        where: 'idUsuario = ? AND dataUso >= ?',
-        whereArgs: [userId, startDate],
-      );
+    return await db.query(
+      'uso_celular',
+      where: 'idUsuario = ? AND dataUso >= ?',
+      whereArgs: [userId, startDate],
+    );
   }
 
   Future<Map<String, dynamic>> getTempoRestante(int userId, String dataUso) async {
