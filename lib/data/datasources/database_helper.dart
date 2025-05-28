@@ -160,6 +160,32 @@ class DatabaseHelper {
     return await db.query('usuarios');
   }
 
+  Future<void> saveUserProfile(Map<String, dynamic> data) async {
+    final db = await database;
+    await db.insert(
+      'usuarios',
+      {
+        'nome': data['nome'],
+        'email': data['email'],
+        'dataNascimento': data['dataNascimento'],
+        'temFoto': data['temFoto'] == true ? 1 : 0,
+        'profileImagePath': data['profileImagePath'],
+        'heartcode': data['heartcode'],
+        'streak': data['streak'] ?? 0,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<Map<String, dynamic>?> getCachedUserProfile() async {
+    final db = await database;
+    final result = await db.query('usuarios', limit: 1);
+    if (result.isNotEmpty) {
+      return result.first;
+    }
+    return null;
+  }
+
   Future<List<Map<String, dynamic>>> getUsoCelularUltimaSemana(int userId) async {
     final db = await database;
     final startDate = DateTime.now().subtract(Duration(days: 6)).toIso8601String().split('T')[0];

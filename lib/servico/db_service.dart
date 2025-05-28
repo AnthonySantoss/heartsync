@@ -18,20 +18,20 @@ class DBService {
 
   Future _createDB(Database db, int version) async {
     await db.execute('''
-    CREATE TABLE couple (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      userName1 TEXT,
-      heartCode1 TEXT,
-      birthDate1 TEXT,
-      userName2 TEXT,
-      heartCode2 TEXT,
-      birthDate2 TEXT,
-      anniversaryDate TEXT,
-      syncDate TEXT,
-      imageUrl1 TEXT,
-      imageUrl2 TEXT
-    )
-    ''');
+CREATE TABLE couple (
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+userName1 TEXT,
+heartCode1 TEXT,
+birthDate1 TEXT,
+userName2 TEXT,
+heartCode2 TEXT,
+birthDate2 TEXT,
+anniversaryDate TEXT,
+syncDate TEXT,
+imageUrl1 TEXT,
+imageUrl2 TEXT
+)
+''');
   }
 
   Future<void> saveCoupleProfile(Map<String, dynamic> data) async {
