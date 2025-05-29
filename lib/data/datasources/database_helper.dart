@@ -22,7 +22,7 @@ class DatabaseHelper {
     final path = join(databasePath, 'heartsync.db');
     return await openDatabase(
       path,
-      version: 4, // Incrementado para nova migração
+      version: 4,
       onCreate: (db, version) async {
         print('DatabaseHelper: Criando tabelas no banco de dados local');
         await db.execute('''
@@ -38,7 +38,7 @@ class DatabaseHelper {
             syncDate TEXT,
             updatedAt TEXT,
             streak INTEGER DEFAULT 0,
-            lastStreakDate TEXT -- Nova coluna adicionada
+            lastStreakDate TEXT
           )
         ''');
         await db.execute('''
@@ -128,7 +128,7 @@ class DatabaseHelper {
     String? anniversaryDate,
     String? syncDate,
     int streak = 0,
-    String? lastStreakDate, // Adicionado para suportar lastStreakDate
+    String? lastStreakDate,
   }) async {
     final db = await database;
     return await db.insert('usuarios', {
@@ -141,7 +141,7 @@ class DatabaseHelper {
       'anniversaryDate': anniversaryDate,
       'syncDate': syncDate,
       'streak': streak,
-      'lastStreakDate': lastStreakDate, // Adicionado
+      'lastStreakDate': lastStreakDate,
     });
   }
 
@@ -248,6 +248,19 @@ class DatabaseHelper {
       limit: 1,
     );
     return result.isNotEmpty;
+  }
+
+  Future<bool> hasIncrementedStreakToday(int userId) async {
+    final db = await database;
+    final today = DateTime.now().toIso8601String().split('T')[0];
+    final result = await db.query(
+      'usuarios',
+      columns: ['lastStreakDate'],
+      where: 'id = ?',
+      whereArgs: [userId],
+      limit: 1,
+    );
+    return result.isNotEmpty && result.first['lastStreakDate'] == today;
   }
 
   Future<void> updateStreakCount(int userId, int streak, {String? lastStreakDate}) async {
