@@ -31,7 +31,7 @@ class _IntroducaoState extends State<Introducao> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('hasSeenIntro', true);
     // Navega para HomePage
-    Navigator.pushReplacementNamed(context, '/homepage');
+    Navigator.pushReplacementNamed(context, '/home');
   }
 
   void _proximaPagina() {
