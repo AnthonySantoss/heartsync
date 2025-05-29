@@ -173,9 +173,8 @@ class _HomePageState extends State<HomePage> {
       } else if (difference == 1) {
         print('HomePage: Giro realizado ontem, incrementando streak');
         currentStreak++;
-        // Corrected line: Pass lastStreakDate as a named argument
         await _databaseHelper.updateStreakCount(userId, currentStreak, lastStreakDate: todayString);
-        await _apiService.updateStreak(userId, currentStreak, lastStreakDate: todayString); // Fixed here
+        await _apiService.updateStreak(userId, currentStreak, lastStreakDate: todayString);
         return currentStreak;
       } else {
         print('HomePage: Streak expirado, resetando');
@@ -191,7 +190,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<String> _calculateNextRouletteTime(Map<String, dynamic>? rouletteData) async {
     try {
-      const defaultDuration = Duration(hours: 4); // Duração padrão do cronômetro: 4 horas
+      const defaultDuration = Duration(hours: 4);
       if (rouletteData != null && rouletteData['proximaRoleta'] != null) {
         final nextRoulette = DateTime.parse(rouletteData['proximaRoleta']).toLocal();
         final now = DateTime.now().toLocal();
@@ -460,10 +459,8 @@ class _HomePageState extends State<HomePage> {
               }
             },
             child: Container(
-              width: 280,
               height: 146,
               padding: const EdgeInsets.all(16),
-              margin: const EdgeInsets.only(right: 10),
               decoration: BoxDecoration(
                 color: const Color(0xFF210E45),
                 borderRadius: BorderRadius.circular(20),
@@ -543,52 +540,6 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
-        Container(
-          width: 130,
-          height: 146,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFBA9513), Color(0xFF961200)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                'Série',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Image.asset(
-                    'lib/assets/images/sequencia.png',
-                    width: 30,
-                    height: 30,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                      streakCount.toString(),
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -596,9 +547,7 @@ class _HomePageState extends State<HomePage> {
   Widget _buildRecadosList() {
     return Expanded(
       child: Container(
-        width: 425,
-        height: 222,
-        padding: const EdgeInsets.all(15),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: const Color(0xFF210E45),
           borderRadius: BorderRadius.circular(30),
@@ -617,26 +566,32 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 10),
             Expanded(
               child: PageView(
+                padEnds: false,
+                pageSnapping: true,
+                controller: PageController(viewportFraction: 0.9),
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(20),
                     child: Image.asset(
                       'lib/assets/images/definam.jpg',
-                      fit: BoxFit.cover,
+                      fit: BoxFit.contain,
+                      width: double.infinity,
                     ),
                   ),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(20),
                     child: Image.asset(
                       'lib/assets/images/momentos.jpg',
-                      fit: BoxFit.cover,
+                      fit: BoxFit.contain,
+                      width: double.infinity,
                     ),
                   ),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(20),
                     child: Image.asset(
                       'lib/assets/images/menos.jpg',
-                      fit: BoxFit.cover,
+                      fit: BoxFit.contain,
+                      width: double.infinity,
                     ),
                   ),
                 ],
@@ -647,7 +602,6 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-
 
   Widget _buildRecado(String text, String time, {bool isOther = false}) {
     return Padding(
