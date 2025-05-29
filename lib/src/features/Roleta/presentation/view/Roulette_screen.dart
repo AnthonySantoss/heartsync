@@ -52,7 +52,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
   bool isSpinning = false;
   bool isTimerRunning = false;
   int timerSeconds = 0;
-  int initialTimerSeconds = 0;
+  int initialTimerSeconds = 0; // To track the initial duration for progress
   Timer? _timer;
   final StreamController<int> _controller = StreamController<int>.broadcast();
   String selectedCategory = 'Dentro de Casa';
@@ -80,7 +80,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
-      _resetTimer();
+      _resetTimer(); // Reinicia o cronômetro quando o aplicativo é pausado
     }
   }
 
@@ -130,13 +130,13 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
     final hours = int.parse(parts[0]);
     final minutes = int.parse(parts[1]);
     timerSeconds = hours * 3600 + minutes * 60;
-    initialTimerSeconds = timerSeconds;
+    initialTimerSeconds = timerSeconds; // Store initial duration
 
     setState(() {
       isTimerRunning = true;
     });
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (timerSeconds > 0) {
         setState(() {
           timerSeconds--;
@@ -146,8 +146,6 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
         setState(() {
           isTimerRunning = false;
         });
-        // Increment streak when timer completes, if not already done today
-        await _incrementStreak();
       }
     });
   }
@@ -164,9 +162,8 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
   Future<void> _incrementStreak() async {
     try {
       final today = DateTime.now().toIso8601String().split('T')[0];
-      // Check if streak was already incremented today
-      if (await _databaseHelper.hasIncrementedStreakToday(widget.userId)) {
-        print('Streak já contabilizado hoje.');
+      if (await _databaseHelper.hasUsedRouletteToday(widget.userId)) {
+        print('Já contabilizou streak hoje.');
         return;
       }
 
@@ -222,6 +219,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
         blockTime: blockTime,
         proximaRoleta: proximaRoleta,
       );
+      await _incrementStreak();
     } catch (e) {
       print('Erro ao salvar atividade da roleta: $e');
     }
@@ -331,7 +329,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
   }
 
   void addActivity() {
-    if (isTimerRunning) return;
+    if (isTimerRunning) return; // Disable adding activity when timer is running
     showDialog(
       context: context,
       builder: (context) {
@@ -444,7 +442,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
   }
 
   void editActivity(int index) {
-    if (isTimerRunning) return;
+    if (isTimerRunning) return; // Disable editing activity when timer is running
     String editName = activities[index].name;
     String editTime = activities[index].blockTime;
     final timeController = TextEditingController(text: editTime);
@@ -553,7 +551,7 @@ class _RouletteScreenState extends State<RouletteScreen> with WidgetsBindingObse
   }
 
   void editActivityList() {
-    if (isTimerRunning) return;
+    if (isTimerRunning) return; // Disable editing list when timer is running
     showDialog(
       context: context,
       builder: (context) {
@@ -962,6 +960,7 @@ class CircularProgressTimer extends StatelessWidget {
     return Stack(
       alignment: Alignment.center,
       children: [
+        // Círculo de progresso na borda
         SizedBox(
           width: 350,
           height: 350,
@@ -972,6 +971,7 @@ class CircularProgressTimer extends StatelessWidget {
             strokeWidth: 5,
           ),
         ),
+        // Texto no centro
         Text(
           _formatTimer(timerSeconds),
           style: TextStyle(

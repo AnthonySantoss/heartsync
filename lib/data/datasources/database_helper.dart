@@ -160,6 +160,27 @@ class DatabaseHelper {
     return await db.query('usuarios');
   }
 
+  Future<Map<String, dynamic>?> getUsuarioById(int userId) async {
+    final db = await database;
+    final result = await db.query(
+      'usuarios',
+      where: 'id = ?',
+      whereArgs: [userId],
+      limit: 1,
+    );
+    return result.isNotEmpty ? result.first : null;
+  }
+
+  Future<int> updateUser(int userId, Map<String, dynamic> updates) async {
+    final db = await database;
+    return await db.update(
+      'usuarios',
+      updates,
+      where: 'id = ?',
+      whereArgs: [userId],
+    );
+  }
+
   Future<void> saveUserProfile(Map<String, dynamic> data) async {
     final db = await database;
     await db.insert(
