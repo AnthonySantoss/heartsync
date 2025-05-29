@@ -106,6 +106,9 @@ flutter:
     - lib/assets/images/atividadesemconjunto.png
     - lib/assets/images/cultivembons.png
     - lib/assets/images/gerenciem_o_tempo.png
+    - lib/assets/images/definam.jpg
+    - lib/assets/images/menos.jpg
+    - lib/assets/images/momentos.jpg
 
 
   # An image asset can refer to one or more resolution-specific "variants", see
